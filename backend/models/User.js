@@ -17,7 +17,7 @@
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const { USER_ROLES } = require('../config/constants');
+const { USER_ROLES, USER_PLANS } = require('../config/constants');
 
 /**
  * Authentication Provider Types
@@ -121,6 +121,16 @@ const UserSchema = new mongoose.Schema({
     default: false
   },
 
+  /**
+   * Whether the user has set a password (independent of authProvider).
+   * Lets Google users add a password later and use email+password too.
+   * Maintained by the pre-save hook whenever password is modified.
+   */
+  hasPassword: {
+    type: Boolean,
+    default: false,
+  },
+
   lastLogin: {
     type: Date
   },
@@ -147,6 +157,24 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     select: false,
   },
+
+  // ── Plan / Subscription ──────────────────────────────────────────────────────
+  /**
+   * 'free' — limited to PLAN_LIMITS.FREE_MONTHLY_SESSIONS sessions/month,
+   *           easy/medium difficulty only, no live interviews.
+   * 'pro'  — unlimited sessions, all difficulties, live interview access.
+   */
+  plan: {
+    type:    String,
+    enum:    Object.values(USER_PLANS),
+    default: USER_PLANS.FREE,
+  },
+
+  /** Timestamp when the current plan was activated (used for monthly reset logic). */
+  planActivatedAt: {
+    type:    Date,
+    default: null,
+  },
 }, {
   timestamps: true // Adds createdAt and updatedAt automatically
 });
@@ -160,15 +188,9 @@ const UserSchema = new mongoose.Schema({
  * Only hashes if password is modified and auth provider is 'local'
  */
 UserSchema.pre('save', async function () {
-  // Only hash the password if:
-  // 1. It's a local auth user
-  // 2. The password field exists and is modified
-  if (this.authProvider !== AUTH_PROVIDERS.LOCAL || !this.isModified('password')) {
-    return;
-  }
-
-  // Skip if password is not provided (e.g., Google OAuth user)
-  if (!this.password) {
+  // Hash the password whenever it's modified and present.
+  // (Google users can now set a password too, so don't gate on authProvider.)
+  if (!this.isModified('password') || !this.password) {
     return;
   }
 
@@ -176,6 +198,7 @@ UserSchema.pre('save', async function () {
     // Architecture doc specifies bcrypt cost 12+
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12;
     this.password = await bcrypt.hash(this.password, saltRounds);
+    this.hasPassword = true;
   } catch (error) {
     throw error; // In async hooks, throwing an error is equivalent to next(error)
   }
@@ -192,8 +215,8 @@ UserSchema.pre('save', async function () {
  * @returns {Promise<boolean>} - True if passwords match
  */
 UserSchema.methods.comparePassword = async function (candidatePassword) {
-  // If user registered with Google, they don't have a password
-  if (this.authProvider === AUTH_PROVIDERS.GOOGLE) {
+  // No password set (e.g. Google user who hasn't added one yet).
+  if (!this.password) {
     return false;
   }
   return bcrypt.compare(candidatePassword, this.password);
@@ -207,6 +230,10 @@ UserSchema.methods.comparePassword = async function (candidatePassword) {
  */
 UserSchema.methods.toSafeObject = function () {
   const userObject = this.toObject();
+  // Derived: local users always have a password (schema requires it).
+  // For Google users, fall back to the stored flag.
+  userObject.hasPassword =
+    userObject.hasPassword === true || this.authProvider === AUTH_PROVIDERS.LOCAL;
   delete userObject.password;
   delete userObject.__v;
   return userObject;
@@ -249,15 +276,27 @@ UserSchema.statics.findByGoogleId = function (googleId) {
  * @param {string} googleProfile.picture - Profile picture URL
  * @returns {Promise<{user: User, isNewUser: boolean}>}
  */
-UserSchema.statics.findOrCreateFromGoogle = async function (googleProfile) {
+UserSchema.statics.findOrCreateFromGoogle = async function (googleProfile, requestedRole) {
   const { googleId, email, name, picture } = googleProfile;
+
+  // Normalize and validate the requested role (only relevant for signup mode).
+  // Login mode passes nothing; in that case we skip the role-conflict check.
+  const normalizedRole = requestedRole === 'interviewer' ? 'interviewer'
+    : requestedRole === 'user' ? 'user'
+    : null;
 
   // First, try to find user by Google ID
   let user = await this.findOne({ googleId });
 
   if (user) {
-    // User exists with this Google ID - update last login
+    // Existing Google account — role-conflict check (signup mode only)
+    if (normalizedRole && user.user_role !== normalizedRole) {
+      return { conflict: true, existingRole: user.user_role };
+    }
+    // Update last login AND refresh name/picture from Google
     user.lastLogin = new Date();
+    if (name) user.name = name;
+    if (picture) user.profilePicture = picture;
     await user.save();
     return { user, isNewUser: false };
   }
@@ -266,17 +305,24 @@ UserSchema.statics.findOrCreateFromGoogle = async function (googleProfile) {
   user = await this.findOne({ email: email.toLowerCase() });
 
   if (user) {
-    // User exists with email - link Google account
+    // Existing email account — same role-conflict rule.
+    if (normalizedRole && user.user_role !== normalizedRole) {
+      return { conflict: true, existingRole: user.user_role };
+    }
+    // Link Google account and sync profile
     user.googleId = googleId;
     user.authProvider = AUTH_PROVIDERS.GOOGLE;
     user.isEmailVerified = true; // Google emails are verified
     user.profilePicture = picture || user.profilePicture;
+    if (name && (!user.name || user.name === 'User' || user.name === 'Google User')) {
+      user.name = name;
+    }
     user.lastLogin = new Date();
     await user.save();
     return { user, isNewUser: false };
   }
 
-  // No user exists - create new user
+  // No user exists - create new user with the requested role (defaults to 'user')
   user = await this.create({
     name,
     email: email.toLowerCase(),
@@ -284,7 +330,8 @@ UserSchema.statics.findOrCreateFromGoogle = async function (googleProfile) {
     authProvider: AUTH_PROVIDERS.GOOGLE,
     profilePicture: picture,
     isEmailVerified: true, // Google emails are verified
-    lastLogin: new Date()
+    lastLogin: new Date(),
+    user_role: normalizedRole || USER_ROLES.USER,
   });
 
   return { user, isNewUser: true };

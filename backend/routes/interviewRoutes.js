@@ -39,6 +39,9 @@ const logger = require('../config/logger');
 const upload = require('../middleware/uploadMiddleware');
 const { submitAnswer, getAnswers } = require('../controllers/answerController');
 
+// Plan guard imports
+const { checkSessionLimit, checkDifficultyAccess } = require('../middleware/planGuard');
+
 // Phase 5 imports (AI services — activate when AI microservice is ready)
 // const aiServiceClient = require('../services/aiServiceClient');
 
@@ -49,7 +52,7 @@ const router = express.Router();
  * @desc    Start a new interview session
  * @access  Private
  */
-router.post('/start', authenticate, ...startInterviewValidation, asyncHandler(async (req, res) => {
+router.post('/start', authenticate, ...startInterviewValidation, checkSessionLimit, checkDifficultyAccess, asyncHandler(async (req, res) => {
   const { session_type, jobTitle, skills, jobDescription, difficulty } = req.body;
 
   const session = new InterviewSession({

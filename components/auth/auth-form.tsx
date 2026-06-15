@@ -10,7 +10,7 @@ import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { Sparkles, Loader2, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { isValidEmail } from "@/lib/utils";
+import { isValidEmail, isAllowedEmailDomain, ALLOWED_EMAIL_DOMAINS, cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
 interface AuthFormProps {
@@ -23,6 +23,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [role, setRole] = useState<"user" | "interviewer">("user");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -38,6 +39,13 @@ export function AuthForm({ mode }: AuthFormProps) {
     // Validate email format
     if (!isValidEmail(formData.email)) {
       setError("Please enter a valid email address");
+      return;
+    }
+
+    // On sign-up, only allow the whitelisted email domains. Everything else is
+    // rejected here and again by the backend.
+    if (mode === "signup" && !isAllowedEmailDomain(formData.email)) {
+      setError(`Email must be from an allowed domain: ${ALLOWED_EMAIL_DOMAINS.join(", ")}`);
       return;
     }
 
@@ -65,7 +73,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           description: "You have been logged in successfully.",
         });
       } else {
-        await signup(formData.name.trim(), formData.email, formData.password);
+        await signup(formData.name.trim(), formData.email, formData.password, role);
         toast.success("Account created!", {
           description: "Welcome to Intervexa.",
         });
@@ -89,18 +97,22 @@ export function AuthForm({ mode }: AuthFormProps) {
   // Receives authorization code from auth-code flow
   const handleGoogleSuccess = async (authCode: string) => {
     try {
-      // Pass authCode with 'authCode' token type so backend knows to exchange it
-      await googleSignIn(authCode, 'authCode');
+      // In signup mode we forward the chosen role so the backend can enforce
+      // the one-email-one-role rule. In login mode we omit it.
+      await googleSignIn(authCode, 'authCode', mode === 'signup' ? role : undefined);
       toast.success("Welcome!", {
         description: "You have been signed in with Google.",
       });
     } catch (err) {
+      // Fully handle here — surface as form error + toast. Don't re-throw:
+      // the button's loading state resets in its own finally{} regardless,
+      // and re-throwing only causes Next.js dev overlay to flag the
+      // expected role-conflict / duplicate-account message as a Console Error.
       const message = err instanceof Error ? err.message : "Google sign-in failed";
       setError(message);
       toast.error("Google Sign-In Failed", {
         description: message,
       });
-      throw err; // Re-throw so the button can handle loading state
     }
   };
 
@@ -158,6 +170,47 @@ export function AuthForm({ mode }: AuthFormProps) {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {mode === "signup" && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-foreground">
+                  I want to join as:
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setRole("user")}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer text-center transition-all duration-200",
+                      role === "user"
+                        ? "border-accent bg-accent/5"
+                        : "border-border/50 bg-secondary/20 hover:border-border"
+                    )}
+                  >
+                    <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center mb-2">
+                      <Sparkles className="h-4 w-4 text-accent" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">Applicant / User</span>
+                    <span className="text-[10px] text-muted-foreground mt-1 leading-tight">Practice & prepare for interviews</span>
+                  </div>
+
+                  <div
+                    onClick={() => setRole("interviewer")}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer text-center transition-all duration-200",
+                      role === "interviewer"
+                        ? "border-accent bg-accent/5"
+                        : "border-border/50 bg-secondary/20 hover:border-border"
+                    )}
+                  >
+                    <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center mb-2">
+                      <User className="h-4 w-4 text-accent" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">Interviewer</span>
+                    <span className="text-[10px] text-muted-foreground mt-1 leading-tight">Conduct mock interviews & earn</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {mode === "signup" && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -253,7 +306,7 @@ export function AuthForm({ mode }: AuthFormProps) {
 
             {mode === "login" && (
               <div className="flex items-center justify-end">
-                <Link href="#" className="text-sm text-accent hover:underline">
+                <Link href="/forgot-password" className="text-sm text-accent hover:underline">
                   Forgot password?
                 </Link>
               </div>

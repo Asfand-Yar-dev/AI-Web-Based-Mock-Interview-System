@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
 import { GoogleOAuthWrapper } from "@/components/auth/google-oauth-wrapper"
-import { Toaster } from "sonner"
+import { ThemedToaster } from "@/components/themed-toaster"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
@@ -50,12 +50,7 @@ export default function RootLayout({
               {children}
             </AuthProvider>
           </GoogleOAuthWrapper>
-          <Toaster 
-            theme="dark" 
-            position="top-right"
-            richColors
-            closeButton
-          />
+          <ThemedToaster />
         </ThemeProvider>
         <Analytics />
       </body>

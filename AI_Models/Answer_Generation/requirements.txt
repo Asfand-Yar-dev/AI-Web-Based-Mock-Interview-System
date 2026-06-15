@@ -1,0 +1,11 @@
+# Smart Mock Interview System - Dependencies
+# ==========================================
+
+# Core AI/ML Libraries
+openai>=1.0.0
+
+# Optional: Environment variable management
+python-dotenv>=1.0.0
+
+# Testing and Development
+pytest>=7.4.0

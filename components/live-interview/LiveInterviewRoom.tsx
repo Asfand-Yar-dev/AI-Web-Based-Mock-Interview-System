@@ -1,0 +1,388 @@
+"use client";
+
+/**
+ * LiveInterviewRoom — Premium Live Interview Feature
+ * ---------------------------------------------------
+ * Professional full-screen 1-on-1 video room over WebRTC, signalled via Socket.IO.
+ * Records the user's local stream with MediaRecorder so the chunks can be
+ * uploaded to cloud storage after the call (for the async AI pipeline).
+ *
+ * Source: Doc/premium_live_interview_architecture.md §3 Step 3 + §5.4
+ */
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  PhoneOff,
+  Wifi,
+  WifiOff,
+  Loader2,
+  AlertCircle,
+  Upload,
+  CheckCircle2,
+} from "lucide-react";
+import { API_BASE_URL, SOCKET_IO_PATH, STORAGE_KEYS } from "@/lib/api-config";
+
+interface Props {
+  bookingId: string;
+  meetingRoomId: string;
+  /** Called after recording upload completes */
+  onEnded?: () => void;
+  /** Name shown on local feed label */
+  localName?: string;
+  /** Name shown on remote feed label */
+  remoteName?: string;
+}
+
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+
+type Phase = "idle" | "connecting" | "in-call" | "ended" | "uploading" | "done" | "error";
+
+const PHASE_LABEL: Record<Phase, string> = {
+  idle:       "Initialising…",
+  connecting: "Connecting…",
+  "in-call":  "Connected",
+  ended:      "Call ended",
+  uploading:  "Uploading recording…",
+  done:       "Processing complete",
+  error:      "Connection error",
+};
+
+export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName = "You", remoteName = "Interviewer" }: Props) {
+  const localVideoRef  = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pcRef          = useRef<RTCPeerConnection | null>(null);
+  const socketRef      = useRef<any>(null);
+  const recorderRef    = useRef<MediaRecorder | null>(null);
+  const chunksRef      = useRef<Blob[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [phase, setPhase]         = useState<Phase>("idle");
+  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
+  const [micOn, setMicOn]         = useState(true);
+  const [camOn, setCamOn]         = useState(true);
+  const [elapsed, setElapsed]     = useState(0); // seconds
+  const [remoteConnected, setRemoteConnected] = useState(false);
+
+  // ── Timer ──
+  useEffect(() => {
+    if (phase === "in-call") {
+      timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [phase]);
+
+  // ── Start WebRTC ──
+  useEffect(() => {
+    let cancelled = false;
+
+    async function start() {
+      setPhase("connecting");
+      try {
+        // 1. Hardware permissions
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (cancelled) return;
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+        // 2. RTCPeerConnection
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        pcRef.current = pc;
+        stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+
+        pc.ontrack = (ev) => {
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ev.streams[0];
+          setRemoteConnected(true);
+        };
+
+        // 3. Local recording for the AI pipeline
+        try {
+          const mr = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9,opus" });
+          mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+          mr.start(2000);
+          recorderRef.current = mr;
+        } catch (recErr) {
+          console.warn("MediaRecorder unavailable — recording disabled.", recErr);
+        }
+
+        // 4. Socket.IO signalling
+        const { io } = await import("socket.io-client");
+        const token = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
+        const socket = io(API_BASE_URL, {
+          path: SOCKET_IO_PATH,
+          auth: { token: token || "" },
+          transports: ["websocket"],
+        });
+        socketRef.current = socket;
+
+        socket.on("connect", () => {
+          socket.emit("join-room", { roomId: meetingRoomId }, (ack: any) => {
+            if (!ack?.ok) { setErrorMsg(ack?.error || "Could not join room"); setPhase("error"); }
+          });
+        });
+
+        socket.on("peer-joined", async () => {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit("offer", { roomId: meetingRoomId, sdp: offer });
+        });
+
+        socket.on("offer", async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit("answer", { roomId: meetingRoomId, sdp: answer });
+        });
+
+        socket.on("answer", async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        });
+
+        socket.on("ice-candidate", async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
+          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+        });
+
+        pc.onicecandidate = (ev) => {
+          if (ev.candidate) socket.emit("ice-candidate", { roomId: meetingRoomId, candidate: ev.candidate });
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "connected") setPhase("in-call");
+          if (["failed", "disconnected"].includes(pc.connectionState)) {
+            setErrorMsg("Connection lost"); setPhase("error");
+          }
+        };
+      } catch (err: any) {
+        setErrorMsg(err?.message || "Failed to start the room");
+        setPhase("error");
+      }
+    }
+
+    start();
+    return () => { cancelled = true; cleanup(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingRoomId]);
+
+  function cleanup() {
+    try { socketRef.current?.emit("leave-room", { roomId: meetingRoomId }); } catch {}
+    try { socketRef.current?.disconnect(); } catch {}
+    try { pcRef.current?.close(); } catch {}
+    try { recorderRef.current?.state !== "inactive" && recorderRef.current?.stop(); } catch {}
+    try { localStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+  }
+
+  async function endCall() {
+    setPhase("ended");
+    cleanup();
+    setPhase("uploading");
+    try {
+      const blob = new Blob(chunksRef.current, { type: "video/webm" });
+      await uploadRecording(bookingId, blob);
+      setPhase("done");
+      onEnded?.();
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Upload failed");
+      setPhase("error");
+    }
+  }
+
+  // ── Controls ──
+  const toggleMic = useCallback(() => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setMicOn(track.enabled); }
+  }, []);
+
+  const toggleCam = useCallback(() => {
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setCamOn(track.enabled); }
+  }, []);
+
+  const isActive = ["connecting", "in-call"].includes(phase);
+
+  // ── Format timer ──
+  const hh = String(Math.floor(elapsed / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+
+  return (
+    <div className="relative flex h-screen w-full flex-col bg-black">
+      {/* ── Remote video (full screen) ── */}
+      <div className="relative flex-1 overflow-hidden">
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          className="h-full w-full object-cover"
+        />
+
+        {/* Remote label */}
+        {remoteConnected && (
+          <div className="absolute bottom-4 left-4 rounded-lg bg-black/60 px-3 py-1.5 backdrop-blur-sm">
+            <p className="text-sm font-medium text-white">{remoteName}</p>
+          </div>
+        )}
+
+        {/* Waiting overlay (no remote yet) */}
+        {!remoteConnected && phase !== "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-sm">
+            <Loader2 className="h-10 w-10 animate-spin text-accent" />
+            <p className="text-sm text-white/70">
+              {phase === "connecting" ? "Requesting camera & connecting…" : "Waiting for the other participant…"}
+            </p>
+          </div>
+        )}
+
+        {/* Error overlay */}
+        {phase === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80">
+            <AlertCircle className="h-10 w-10 text-destructive" />
+            <p className="text-sm text-white/70">{errorMsg}</p>
+          </div>
+        )}
+
+        {/* Status overlays (upload / done) */}
+        <AnimatePresence>
+          {(phase === "uploading" || phase === "done") && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/85"
+            >
+              {phase === "uploading" ? (
+                <>
+                  <Upload className="h-10 w-10 animate-pulse text-accent" />
+                  <p className="text-base font-medium text-white">Uploading recording…</p>
+                  <p className="text-xs text-white/50">This may take a moment</p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+                  <p className="text-base font-medium text-white">Upload complete</p>
+                  <p className="text-xs text-white/50">AI analysis will begin shortly (~10 min)</p>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Top HUD ── */}
+        <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+          {/* Connection status */}
+          <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 backdrop-blur-sm">
+            {phase === "in-call" ? (
+              <Wifi className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-amber-400" />
+            )}
+            <span className="text-xs font-medium text-white">{PHASE_LABEL[phase]}</span>
+          </div>
+
+          {/* Timer */}
+          {phase === "in-call" && (
+            <div className="rounded-lg bg-black/60 px-3 py-1.5 backdrop-blur-sm font-mono text-sm text-white">
+              {hh}:{mm}:{ss}
+            </div>
+          )}
+        </div>
+
+        {/* ── Local PiP video (bottom-right) ── */}
+        <div className="absolute bottom-20 right-4 w-36 overflow-hidden rounded-xl border-2 border-white/10 bg-black shadow-2xl md:w-48">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`h-full w-full object-cover transition-opacity ${camOn ? "opacity-100" : "opacity-20"}`}
+          />
+          {/* Local label */}
+          <div className="absolute bottom-1 left-2">
+            <p className="text-[10px] font-medium text-white/80">{localName}</p>
+          </div>
+          {/* Cam off indicator */}
+          {!camOn && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <VideoOff className="h-6 w-6 text-white/50" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Controls bar ── */}
+      <div className="flex h-16 shrink-0 items-center justify-center gap-4 bg-black/90 px-6 backdrop-blur-sm">
+        {/* Mic */}
+        <button
+          onClick={toggleMic}
+          disabled={!isActive}
+          title={micOn ? "Mute mic" : "Unmute mic"}
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
+            micOn
+              ? "bg-white/10 hover:bg-white/20 text-white"
+              : "bg-destructive/80 hover:bg-destructive text-white"
+          }`}
+        >
+          {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+        </button>
+
+        {/* Camera */}
+        <button
+          onClick={toggleCam}
+          disabled={!isActive}
+          title={camOn ? "Turn off camera" : "Turn on camera"}
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
+            camOn
+              ? "bg-white/10 hover:bg-white/20 text-white"
+              : "bg-destructive/80 hover:bg-destructive text-white"
+          }`}
+        >
+          {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+        </button>
+
+        {/* End call */}
+        {isActive && (
+          <button
+            onClick={endCall}
+            title="End interview"
+            className="flex h-13 w-28 items-center justify-center gap-2 rounded-full bg-destructive px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-destructive/80"
+          >
+            <PhoneOff className="h-4 w-4" />
+            End Call
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Upload the recorded blob to the backend.
+ * In production this hits a presigned S3 URL. For dev/FYP a base64 fallback
+ * is used. Replace with real upload once S3 is wired.
+ */
+async function uploadRecording(bookingId: string, blob: Blob): Promise<string> {
+  const formData = new FormData();
+  formData.append("recording", blob, `${bookingId}.webm`);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
+  const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/upload-recording`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}): ${txt}`);
+  }
+  const data = await res.json();
+  return data.recordingUrl as string;
+}

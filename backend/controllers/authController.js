@@ -60,7 +60,8 @@ const generateToken = (user) => {
     {
       id: user._id,
       email: user.email,
-      role: user.user_role
+      role: user.user_role,
+      plan: user.plan || 'free',
     },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || TOKEN_EXPIRY.ACCESS }
@@ -99,32 +100,65 @@ const generateToken = (user) => {
  * -----------------------------------------------------------------------------
  */
 const register = async (req, res) => {
-  // SECURITY FIX: Do NOT destructure 'role' from req.body
-  // Any user could register as admin by sending { role: 'admin' }
-  const { name, email, password } = req.body;
+  // SECURITY: Only destructure and permit 'user' or 'interviewer' roles from req.body
+  const { name, email, password, role } = req.body;
+
+  // SECURITY: Only allow 'user' or 'interviewer'. High-privilege roles like 'admin' cannot be requested.
+  const user_role = role === 'interviewer' ? 'interviewer' : 'user';
 
   // Step 1: Check if user with this email already exists
   const existingUser = await User.findOne({ email: email.toLowerCase() });
 
   if (existingUser) {
-    // Return 409 Conflict status for duplicate email
+    // An email is one identity — it can't own both a user and an interviewer account.
+    // If the requested role differs from the existing one, say so explicitly so the user knows
+    // whether to log in to their existing account or use a different email.
+    const existingRole = existingUser.user_role;
+
+    if (existingRole !== user_role) {
+      const existingLabel = existingRole === 'interviewer' ? 'an interviewer'
+        : existingRole === 'admin' ? 'an admin'
+        : 'a candidate';
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        `This email is already registered as ${existingLabel}. The same email can't be used for both a candidate and an interviewer — log in to your existing account or sign up with a different email${user_role === 'interviewer' ? ' to join as an interviewer' : ''}.`
+      );
+    }
+
+    // Same role, just a duplicate signup attempt.
     throw new ApiError(
       HTTP_STATUS.CONFLICT,
-      'An account with this email already exists. Please use a different email or login.'
+      'An account with this email already exists. Please log in or use a different email.'
     );
   }
-
-  // Step 2: Create new user object
-  // SECURITY: Role is ALWAYS 'user'. Admin roles must be assigned by existing admins.
   const user = new User({
     name: name.trim(),
     email: email.toLowerCase().trim(),
     password,
-    user_role: 'user' // Hardcoded — never trust client input for roles
+    user_role
   });
 
   // Step 3: Save user to database
   await user.save();
+
+  if (user_role === 'interviewer') {
+    try {
+      const Interviewer = require('../models/Interviewer');
+      await Interviewer.create({
+        userId: user._id,
+        hourlyRate: 0,
+        isAcceptingBookings: false,
+        bio: '',
+        domains: [],
+        skills: [],
+        roles: [],
+        availability: []
+      });
+      logger.info(`Auto-created skeleton interviewer profile for user ${user._id} on registration.`);
+    } catch (err) {
+      logger.error(`Failed to auto-create skeleton interviewer profile for user ${user._id} on registration: ${err.message}`);
+    }
+  }
 
   // Step 4: Generate JWT token for immediate login after registration
   const token = generateToken(user);
@@ -351,6 +385,55 @@ const updateProfile = async (req, res) => {
  * @throws {ApiError} 404 - If user not found
  * -----------------------------------------------------------------------------
  */
+/**
+ * -----------------------------------------------------------------------------
+ * CONTROLLER: Set Password (first-time)
+ * -----------------------------------------------------------------------------
+ * Lets a user who has no password yet (typically a Google OAuth user) set one
+ * so they can also log in with email + password.
+ *
+ * @route   POST /api/users/set-password
+ * @access  Private
+ * -----------------------------------------------------------------------------
+ */
+const setPassword = async (req, res) => {
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'New password is required.');
+  }
+  if (newPassword.length < 6) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'New password must be at least 6 characters long.'
+    );
+  }
+
+  const user = await User.findById(req.user.id).select('+password');
+
+  if (!user) {
+    throw new ApiError(HTTP_STATUS.NOT_FOUND, 'User account not found.');
+  }
+
+  if (user.password) {
+    throw new ApiError(
+      HTTP_STATUS.CONFLICT,
+      'A password is already set for this account. Use change password instead.'
+    );
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  logger.info(`Password set for user: ${user.email}`);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Password set successfully. You can now log in with email and password.',
+    data: { user: user.toSafeObject() },
+  });
+};
+
 const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
@@ -387,6 +470,15 @@ const changePassword = async (req, res) => {
     );
   }
 
+  // Reject if new password matches the current one
+  const isSameAsCurrent = await user.comparePassword(newPassword);
+  if (isSameAsCurrent) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'New password must be different from your current password.'
+    );
+  }
+
   // Update password (will be hashed by pre-save middleware)
   user.password = newPassword;
   await user.save();
@@ -417,11 +509,24 @@ const changePassword = async (req, res) => {
  * -----------------------------------------------------------------------------
  */
 const verifyToken = async (req, res) => {
-  // If we reach here, the token is valid (auth middleware passed)
+  // If we reach here, the JWT itself is valid and unexpired (auth middleware
+  // already verified signature + expiry). The only remaining checks are about
+  // the account the token points to — so give distinct, accurate messages
+  // instead of a misleading "token expired".
   const user = await User.findById(req.user.id);
 
-  if (!user || !user.isActive) {
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid or expired token.');
+  if (!user) {
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      'This account no longer exists. Please sign up or log in again.'
+    );
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(
+      HTTP_STATUS.FORBIDDEN,
+      'This account has been deactivated. Please contact support.'
+    );
   }
 
   res.status(HTTP_STATUS.OK).json({
@@ -458,7 +563,7 @@ const verifyToken = async (req, res) => {
  * -----------------------------------------------------------------------------
  */
 const googleSignIn = async (req, res) => {
-  const { idToken, accessToken, authCode } = req.body;
+  const { idToken, accessToken, authCode, role } = req.body;
 
   // Step 1: Validate that at least one token is provided
   if (!idToken && !accessToken && !authCode) {
@@ -467,6 +572,12 @@ const googleSignIn = async (req, res) => {
       'Google token is required. Please provide idToken, accessToken, or authCode from Google Sign-In.'
     );
   }
+
+  // SECURITY: Only allow 'user' or 'interviewer' from the client.
+  // null = login mode (no role-conflict check).
+  const requestedRole = role === 'interviewer' ? 'interviewer'
+    : role === 'user' ? 'user'
+    : null;
 
   // Step 2: Verify the Google token and get user info
   let googleProfile;
@@ -553,7 +664,20 @@ const googleSignIn = async (req, res) => {
   logger.info(`Google Sign-In attempt for: ${googleProfile.email}`);
 
   // Step 3: Find or create user in our database
-  const { user, isNewUser } = await User.findOrCreateFromGoogle(googleProfile);
+  const result = await User.findOrCreateFromGoogle(googleProfile, requestedRole);
+
+  // Role-conflict: existing account has a different role than the one being signed up for.
+  if (result.conflict) {
+    const existingLabel = result.existingRole === 'interviewer' ? 'an interviewer'
+      : result.existingRole === 'admin' ? 'an admin'
+      : 'a candidate';
+    throw new ApiError(
+      HTTP_STATUS.CONFLICT,
+      `This Google account is already registered as ${existingLabel}. The same email can't be used for both a candidate and an interviewer — sign in to your existing account, or use a different Google account to join as ${requestedRole === 'interviewer' ? 'an interviewer' : 'a candidate'}.`
+    );
+  }
+
+  const { user, isNewUser } = result;
 
   if (!user.isActive) {
     throw new ApiError(
@@ -562,11 +686,32 @@ const googleSignIn = async (req, res) => {
     );
   }
 
+  // Brand-new Google interviewer → auto-create their skeleton interviewer profile,
+  // mirroring the local-register flow so the interviewer dashboard has something to load.
+  if (isNewUser && user.user_role === 'interviewer') {
+    try {
+      const Interviewer = require('../models/Interviewer');
+      await Interviewer.create({
+        userId: user._id,
+        hourlyRate: 0,
+        isAcceptingBookings: false,
+        bio: '',
+        domains: [],
+        skills: [],
+        roles: [],
+        availability: [],
+      });
+      logger.info(`Auto-created skeleton interviewer profile for Google user ${user._id}.`);
+    } catch (err) {
+      logger.error(`Failed to auto-create skeleton interviewer profile for Google user ${user._id}: ${err.message}`);
+    }
+  }
+
   // Step 5: Generate our own JWT token
   const token = generateToken(user);
 
   if (isNewUser) {
-    logger.info(`New user registered via Google: ${googleProfile.email}`);
+    logger.info(`New user registered via Google: ${googleProfile.email} as ${user.user_role}`);
   } else {
     logger.info(`User logged in via Google: ${googleProfile.email}`);
   }
@@ -706,16 +851,20 @@ const refreshTokenHandler = async (req, res) => {
  * -----------------------------------------------------------------------------
  * CONTROLLER: Forgot Password
  * -----------------------------------------------------------------------------
- * Generates a password reset token and returns it.
- * 
- * In production, this token should be sent via email. For now, the token
- * is returned in the response for development/testing purposes.
- * 
+ * Generates a 6-digit one-time code (OTP), stores its hash, and emails it to
+ * the user. The user then enters the OTP to unlock the new-password step
+ * (see verifyResetOtp + resetPassword).
+ *
  * @route   POST /api/users/forgot-password
  * @access  Public
  * -----------------------------------------------------------------------------
  */
 const crypto = require('crypto');
+const { sendPasswordResetOtp } = require('../config/email');
+
+// Hash an OTP/token the same way before storing or comparing.
+const hashResetCode = (code) =>
+  crypto.createHash('sha256').update(String(code)).digest('hex');
 
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
@@ -730,40 +879,81 @@ const forgotPassword = async (req, res) => {
     // Don't reveal whether email exists — always return success
     return res.status(HTTP_STATUS.OK).json({
       success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.'
+      message: 'If an account with that email exists, a verification code has been sent.'
     });
   }
 
-  if (user.authProvider === 'google') {
+  // Block reset only when no password has been set (pure Google account).
+  // Google users who added a password via /set-password can still reset.
+  if (!user.hasPassword) {
     throw new ApiError(
       HTTP_STATUS.BAD_REQUEST,
-      'This account uses Google Sign-In. Password reset is not applicable.'
+      'No password is set for this account. Sign in with Google and set a password in Settings first.'
     );
   }
 
-  // Generate a cryptographically secure reset token
-  const resetToken = crypto.randomBytes(32).toString('hex');
+  // Generate a 6-digit OTP (100000–999999)
+  const otp = crypto.randomInt(100000, 1000000).toString();
 
-  // Hash the token before storing (never store plain tokens in DB)
-  const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-
-  // Store hashed token + expiry (30 minutes)
-  user.passwordResetToken = hashedToken;
-  user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
+  // Store only the hash of the OTP + expiry (10 minutes)
+  user.passwordResetToken = hashResetCode(otp);
+  user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
   await user.save();
 
-  logger.info(`Password reset requested for: ${email}`);
+  // Send the OTP via email (falls back to console-log in dev — see config/email.js)
+  try {
+    await sendPasswordResetOtp(user.email, user.name, otp);
+  } catch (err) {
+    logger.error(`Failed to send password reset OTP to ${user.email}: ${err.message}`);
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_ERROR,
+      'We could not send the verification code right now. Please try again in a moment.'
+    );
+  }
 
-  // TODO: In production, send this token via email instead of returning it
-  // For now, return the unhashed token in response for development
+  logger.info(`Password reset OTP sent to: ${email}`);
+
   res.status(HTTP_STATUS.OK).json({
     success: true,
-    message: 'If an account with that email exists, a password reset link has been sent.',
-    // DEV ONLY — remove in production:
-    ...(process.env.NODE_ENV !== 'production' && {
-      devOnly_resetToken: resetToken,
-      devOnly_note: 'This token is only exposed in development. In production, it would be emailed.'
-    })
+    message: 'If an account with that email exists, a verification code has been sent.'
+  });
+};
+
+/**
+ * -----------------------------------------------------------------------------
+ * CONTROLLER: Verify Reset OTP
+ * -----------------------------------------------------------------------------
+ * Checks that the supplied OTP matches and hasn't expired. Used by the frontend
+ * to "unlock" the new-password step without consuming the code, so the user can
+ * see the password fields only after a valid code is entered.
+ *
+ * @route   POST /api/users/verify-reset-otp
+ * @access  Public
+ * -----------------------------------------------------------------------------
+ */
+const verifyResetOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Email and verification code are required.');
+  }
+
+  const user = await User.findOne({
+    email: email.toLowerCase(),
+    passwordResetToken: hashResetCode(otp),
+    passwordResetExpires: { $gt: new Date() },
+  }).select('+passwordResetToken +passwordResetExpires');
+
+  if (!user) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Invalid or expired verification code. Please check the code or request a new one.'
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Code verified. You can now set a new password.'
   });
 };
 
@@ -771,37 +961,41 @@ const forgotPassword = async (req, res) => {
  * -----------------------------------------------------------------------------
  * CONTROLLER: Reset Password
  * -----------------------------------------------------------------------------
- * Resets the user's password using the token from forgotPassword.
- * 
+ * Resets the user's password using the OTP emailed by forgotPassword.
+ *
  * @route   POST /api/users/reset-password
- * @access  Public (but requires valid reset token)
+ * @access  Public (but requires a valid, unexpired OTP)
  * -----------------------------------------------------------------------------
  */
 const resetPassword = async (req, res) => {
-  const { token, newPassword } = req.body;
+  const { email, otp, newPassword } = req.body;
 
-  if (!token || !newPassword) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Reset token and new password are required.');
+  if (!email || !otp || !newPassword) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Email, verification code and new password are required.'
+    );
   }
 
   if (newPassword.length < 6) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'New password must be at least 6 characters long.');
   }
 
-  // Hash the provided token to compare with stored hash
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-  // Find user with matching token that hasn't expired
+  // Find user with matching OTP hash that hasn't expired
   const user = await User.findOne({
-    passwordResetToken: hashedToken,
-    passwordResetExpires: { $gt: new Date() } // Token must not be expired
+    email: email.toLowerCase(),
+    passwordResetToken: hashResetCode(otp),
+    passwordResetExpires: { $gt: new Date() },
   }).select('+passwordResetToken +passwordResetExpires');
 
   if (!user) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid or expired reset token. Please request a new one.');
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Invalid or expired verification code. Please request a new one.'
+    );
   }
 
-  // Update password (pre-save hook will hash it)
+  // Update password (pre-save hook will hash it) and clear the OTP
   user.password = newPassword;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
@@ -864,11 +1058,13 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
+  setPassword,
   verifyToken,
   // Phase 2 additions:
   logout,
   refreshToken: refreshTokenHandler,
   forgotPassword,
+  verifyResetOtp,
   resetPassword,
   updateSettings,
 };

@@ -1,0 +1,23 @@
+# AI Engine Dependencies for Smart Mock Interview System
+# Vocal Characteristics Analysis Module
+# Install with: pip install -r requirements.txt
+
+# Core ML Libraries
+transformers>=4.30.0
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# Numerical / Scientific
+numpy>=1.24.0
+scipy>=1.10.0
+
+# GUI Dependencies (optional – only needed for GUI testing)
+pyaudio>=0.2.13
+
+# Flask Integration (optional – only needed when running as Flask service)
+flask>=3.0.0
+flask-cors>=4.0.0

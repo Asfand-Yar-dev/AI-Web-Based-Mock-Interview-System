@@ -426,3 +426,193 @@ OUTPUT: Return ONLY the integer score (0-100). No explanation."""
         except Exception as e:
             logger.error(f"Scoring engine error: {e}")
             return 50 # Standard fallback for system errors
+
+    def generate_vetting_question(self, profile: dict, conversation: List[dict]) -> str:
+        history_str = ""
+        for msg in conversation:
+            history_str += f"{msg['role'].capitalize()}: {msg['content']}\n"
+
+        prompt = f"""You are the Intervexa AI Vetting Assistant. Your job is to conduct a professional chat interview to verify a new expert who wants to join our mock interview platform as an interviewer.
+
+Interviewer Profile under review:
+- Domains: {", ".join(profile.get("domains", []))}
+- Roles: {", ".join(profile.get("roles", []))}
+- Skills: {", ".join(profile.get("skills", []))}
+- Bio: {profile.get("bio", "No bio provided.")}
+
+Here is the conversation history so far:
+{history_str}
+
+STRICT INSTRUCTIONS:
+1. Generate the next logical question to ask the candidate.
+2. Ask a mix of short or medium length technical, conceptual, and situational questions. Make sure the questions specifically test their technical depth and evaluation mindset in the skills and domains they listed.
+3. Do NOT repeat questions already asked.
+4. Keep it conversational, warm, and highly professional.
+5. Limit the question to exactly 1 or 2 sentences.
+6. Return ONLY the question. Do not include any greeting, introduction, meta-commentary, or markdown formatting.
+
+Next question:"""
+        return self._generate_with_retry(prompt)
+
+    def evaluate_live_interview(self, role: str, domain: str, skills: List[str],
+                                 transcript: str, interviewer_score: int) -> dict:
+        """
+        Evaluate a live human mock interview from the full Q&A transcript.
+
+        The interviewer pastes the questions they asked and the candidate's
+        answers. The AI evaluates each Q-A pair for technical correctness,
+        communication, confidence, and problem-solving ability, then returns
+        structured dimension scores identical in shape to the free-interview
+        analysis pipeline.
+
+        Args:
+            role:              Job role being interviewed for.
+            domain:            Domain/industry (e.g. "software", "data science").
+            skills:            List of skills/topics the interview covered.
+            transcript:        Full Q&A transcript (Q: ... A: ... format).
+            interviewer_score: The human interviewer's manual score (0-100).
+
+        Returns:
+            dict with keys: technical_score, communication_score,
+            confidence_score, problem_solving_score, overall_score,
+            questions_evaluated, strengths, improvements, summary
+        """
+        skills_str = ", ".join(skills) if skills else "general software engineering"
+
+        prompt = f"""You are an expert technical interview evaluator at a top technology company.
+
+A human interviewer conducted a live mock interview and has provided the full transcript below.
+Your job is to evaluate the CANDIDATE's performance across 4 dimensions.
+
+═══ INTERVIEW CONTEXT ═══
+Role:              {role}
+Domain:            {domain}
+Skills Covered:    {skills_str}
+Human Interviewer Score: {interviewer_score}/100
+
+═══ FULL Q&A TRANSCRIPT ═══
+{transcript}
+
+═══ EVALUATION INSTRUCTIONS ═══
+Read every Question-Answer pair in the transcript carefully. Then score the candidate:
+
+1. technical_score (0-100)
+   — Are the candidate's answers technically correct?
+   — Do they show genuine depth of knowledge (not just buzzwords)?
+   — Do they use specific examples, data structures, algorithms, patterns?
+
+2. communication_score (0-100)
+   — Are answers clear, well-structured, and easy to follow?
+   — Does the candidate explain complex ideas in plain language?
+   — Are answers focused (not rambling or off-topic)?
+
+3. confidence_score (0-100)
+   — Does the candidate seem composed and assertive in their answers?
+   — Do they answer directly or hedge excessively?
+   — Do they defend their reasoning when appropriate?
+
+4. problem_solving_score (0-100)
+   — Does the candidate break down problems methodically?
+   — Do they consider edge cases, trade-offs, and alternatives?
+   — Do they ask clarifying questions when needed?
+
+Also provide:
+- questions_evaluated: count of Q-A pairs you found in the transcript
+- 3-5 specific strengths (based on actual answers in the transcript)
+- 3-5 specific areas for improvement (based on actual weaknesses spotted)
+- summary: 2-3 sentence paragraph summarising the overall performance
+
+SCORING GUIDE:
+90-100 = Exceptional — expert-level answers throughout
+75-89  = Strong — mostly correct with good depth
+60-74  = Good — correct but could be more detailed
+45-59  = Average — shows understanding but notable gaps
+30-44  = Below average — surface-level or partially incorrect answers
+0-29   = Poor — mostly incorrect or very incomplete
+
+CRITICAL OUTPUT RULES:
+- Return ONLY raw JSON. NO markdown, NO ```json fences, NO extra text.
+- overall_score = round((technical_score + communication_score + confidence_score + problem_solving_score) / 4)
+
+Expected JSON structure:
+{{
+  "technical_score": <0-100>,
+  "communication_score": <0-100>,
+  "confidence_score": <0-100>,
+  "problem_solving_score": <0-100>,
+  "overall_score": <0-100>,
+  "questions_evaluated": <integer>,
+  "strengths": ["specific strength 1", "specific strength 2", "specific strength 3"],
+  "improvements": ["specific area 1", "specific area 2", "specific area 3"],
+  "summary": "<2-3 sentence overall assessment>"
+}}
+
+Now evaluate and return ONLY the JSON:"""
+
+        import json as _json
+        import re as _re
+
+        raw = self._generate_with_retry(prompt)
+        logger.info(f"evaluate_live_interview raw output (first 200): {raw[:200]}")
+
+        # Robust extraction — find the outermost JSON object
+        match = _re.search(r'\{[\s\S]+\}', raw)
+        if not match:
+            raise RuntimeError(f"AI did not return valid JSON. Raw output: {raw[:300]}")
+
+        result = _json.loads(match.group())
+
+        # Validate and clamp all numeric fields
+        for field in ('technical_score', 'communication_score', 'confidence_score',
+                      'problem_solving_score', 'overall_score'):
+            val = result.get(field, 0)
+            result[field] = max(0, min(100, int(val)))
+
+        # Recompute overall_score from dimensions (don't trust the model's arithmetic)
+        result['overall_score'] = round(
+            (result['technical_score'] + result['communication_score'] +
+             result['confidence_score'] + result['problem_solving_score']) / 4
+        )
+
+        # Ensure list fields exist
+        result.setdefault('strengths', [])
+        result.setdefault('improvements', [])
+        result.setdefault('summary', '')
+        result.setdefault('questions_evaluated', 0)
+
+        return result
+
+    def evaluate_vetting(self, profile: dict, conversation: List[dict]) -> str:
+        history_str = ""
+        for msg in conversation:
+            history_str += f"{msg['role'].capitalize()}: {msg['content']}\n"
+
+        prompt = f"""You are the Intervexa AI Vetting Evaluator. Review this chat interview between our AI Vetting Assistant and a candidate applying to be an interviewer on our platform.
+
+Interviewer Profile under review:
+- Domains: {", ".join(profile.get("domains", []))}
+- Roles: {", ".join(profile.get("roles", []))}
+- Skills: {", ".join(profile.get("skills", []))}
+- Bio: {profile.get("bio", "No bio provided.")}
+
+Conversation Transcript:
+{history_str}
+
+CRITICAL GRADING INSTRUCTIONS:
+1. Be extremely strict and rigorous. We only verify top-tier experts.
+2. The vetting chat consists of 10 rounds of questions. Check how many questions the candidate actually answered. If they skipped questions, left them blank, gave extremely brief/lazy responses (e.g. 'skip', 'yes', 'no', 'i don't know'), or only answered a few questions, they MUST fail. Set their score between 0 and 50 and set the decision to 'rejected'.
+3. Evaluate their technical depth. Do they demonstrate genuine technical expertise? If their technical explanations are surface-level, shallow, or generic, penalize them heavily.
+4. Empathy & Communication: Do they show a coaching, supportive mindset for mock interviewing?
+
+STRICT OUTPUT REQUIREMENT:
+You must output a single JSON object. Do NOT wrap the JSON in markdown formatting (like ```json). Return ONLY the raw JSON string.
+
+Expected JSON format:
+{{
+  "score": <integer from 0 to 100>,
+  "feedback": "<detailed feedback paragraph outlining their strengths and advice for areas of improvement>",
+  "decision": "approved" or "rejected" (use "approved" only if score is 70 or higher, else "rejected")
+}}
+
+Now, generate the JSON output:"""
+        return self._generate_with_retry(prompt)

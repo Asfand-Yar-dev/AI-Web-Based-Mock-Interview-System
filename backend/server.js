@@ -5,6 +5,8 @@
 
 require('dotenv').config();
 
+const http = require('http');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -52,8 +54,9 @@ app.use('/api', limiter);
 
 // ============ BODY PARSING MIDDLEWARE ============
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Increased limit to 500 MB to support live recording uploads
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
 // SECURITY: Prevent NoSQL injection attacks
 // NOTE: express-mongo-sanitize v2 tries to set req.query which is read-only
@@ -145,33 +148,50 @@ app.get('/health', (req, res) => {
 
 // ============ API ROUTES ============
 
-app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/users',      require('./routes/userRoutes'));
 app.use('/api/interviews', require('./routes/interviewRoutes'));
-app.use('/api/questions', require('./routes/questionRoutes'));
-app.use('/api/answers', require('./routes/answerRoutes'));
-app.use('/api/results', require('./routes/resultRoutes'));
+app.use('/api/questions',  require('./routes/questionRoutes'));
+app.use('/api/answers',    require('./routes/answerRoutes'));
+app.use('/api/results',    require('./routes/resultRoutes'));
+app.use('/api/admin',      require('./routes/adminRoutes'));
+
+// ── Premium Live Interview Routes ────────────────────────────────────────────
+// Architecture: Doc/premium_live_interview_architecture.md
+app.use('/api/bookings',     require('./routes/bookingRoutes'));
+app.use('/api/interviewers', require('./routes/interviewerRoutes'));
+app.use('/api/payments',     require('./routes/paymentRoutes'));
+app.use('/api/webhooks',     require('./routes/webhookRoutes'));
+app.use('/api/vetting',      require('./routes/vettingRoutes'));
 
 // =====================================================================
-// PHASE 6: API DOCUMENTATION (Swagger/OpenAPI)
+// API DOCUMENTATION (Swagger / OpenAPI)
 // =====================================================================
-// Install: npm install swagger-ui-express swagger-jsdoc
+// Interactive API explorer. Use it to test every endpoint:
+//   • Swagger UI : GET /api-docs
+//   • Raw spec   : GET /api-docs.json
 //
-// const swaggerUi = require('swagger-ui-express');
-// const swaggerJsdoc = require('swagger-jsdoc');
-// const swaggerSpec = swaggerJsdoc({
-//   definition: {
-//     openapi: '3.0.0',
-//     info: { title: 'AI Interview System API', version: '1.0.0' },
-//     servers: [{ url: `/api` }],
-//     components: {
-//       securitySchemes: {
-//         bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }
-//       }
-//     }
-//   },
-//   apis: ['./routes/*.js'],
-// });
-// app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Auth: hit POST /api/users/login (or /register), copy the `token` from the
+// response, click "Authorize" in the UI, paste it, and protected routes
+// (those marked with a padlock) become testable.
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customSiteTitle: 'Intervexa API Docs',
+    swaggerOptions: { persistAuthorization: true },
+  })
+);
+
+logger.info('Swagger UI available at /api-docs');
 // =====================================================================
 
 // =====================================================================
@@ -244,9 +264,29 @@ const startServer = async () => {
       );
     }
 
+    // ── Create HTTP server so Socket.IO can share the same port ────────────
+    const httpServer = http.createServer(app);
+
+    // ── Attach WebRTC signaling (Socket.IO) ──────────────────────────────────
+    // Lazy — signalingService will log a warning if socket.io is not installed
+    try {
+      const { attachSignaling } = require('./services/signalingService');
+      attachSignaling(httpServer);
+    } catch (sigErr) {
+      logger.warn(`WebRTC signaling could not be attached: ${sigErr.message}`);
+    }
+
     // Start listening
-    const server = app.listen(PORT, () => {
-      logger.info(` Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+    const server = httpServer.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+
+      // ── Attach no-show auto-refund scheduler ────────────────────────────
+      try {
+        const { attachNoShowScheduler } = require('./services/noShowScheduler');
+        attachNoShowScheduler();
+      } catch (schedErr) {
+        logger.warn(`No-show scheduler could not start: ${schedErr.message}`);
+      }
     });
 
     // ============ GRACEFUL SHUTDOWN ============
@@ -254,7 +294,7 @@ const startServer = async () => {
     const gracefulShutdown = async (signal) => {
       logger.info(`${signal} received. Starting graceful shutdown...`);
 
-      server.close(async () => {
+      httpServer.close(async () => {
         logger.info('HTTP server closed.');
 
         // Close database connection

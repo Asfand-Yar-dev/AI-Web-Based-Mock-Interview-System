@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { api, authApi, User, clearAuthData, getStoredUser, isAuthenticated as checkAuth } from '@/lib/api';
+import { api, authApi, User, clearAuthData, getStoredUser, updateStoredUser, isAuthenticated as checkAuth } from '@/lib/api';
 
 // =============================================================================
 // TYPES
@@ -12,12 +12,14 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isPro: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
-  googleSignIn: (token: string, tokenType?: 'idToken' | 'accessToken' | 'authCode') => Promise<void>;
+  signup: (name: string, email: string, password: string, role?: string) => Promise<void>;
+  googleSignIn: (token: string, tokenType?: 'idToken' | 'accessToken' | 'authCode', role?: 'user' | 'interviewer') => Promise<void>;
   logout: () => void;
   updateProfile: (data: { name?: string }) => Promise<void>;
+  upgradePlan: (plan?: 'pro' | 'free') => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
 }
@@ -37,7 +39,10 @@ interface AuthProviderProps {
 }
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ['/', '/login', '/signup'];
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/forgot-password', '/verify-email'];
+
+// Auth pages a logged-in user should never sit on — bounce them to their dashboard.
+const AUTH_ONLY_ROUTES = ['/login', '/signup'];
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
@@ -65,6 +70,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             const response = await authApi.verifyToken();
             if (response.success && response.data.user) {
               setUser(response.data.user);
+              // Keep localStorage fresh so derived flags (e.g. hasPassword)
+              // don't go stale on the next reload.
+              updateStoredUser(response.data.user);
             }
           } catch {
             // Token invalid - clear auth and redirect if on protected route
@@ -89,6 +97,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initAuth();
   }, [isPublicRoute, router]);
 
+  // Keep authenticated users off the login/signup pages. Covers the forward
+  // button and any direct navigation back to an auth page after sign-in.
+  useEffect(() => {
+    if (!isLoading && user && AUTH_ONLY_ROUTES.includes(pathname)) {
+      const destination = user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
+      router.replace(destination);
+    }
+  }, [isLoading, user, pathname, router]);
+
   // Login handler
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -99,7 +116,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (response.success && response.data) {
         setUser(response.data.user);
-        router.push('/dashboard');
+        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
+        // replace (not push) so /login is dropped from history — back button
+        // from the dashboard goes to the landing page, not back to login.
+        router.replace(destination);
       } else {
         throw new Error(response.message || 'Login failed');
       }
@@ -113,16 +133,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [router]);
 
   // Signup handler
-  const signup = useCallback(async (name: string, email: string, password: string) => {
+  const signup = useCallback(async (name: string, email: string, password: string, role?: string) => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await authApi.register(name, email, password);
+      const response = await authApi.register(name, email, password, role);
       
       if (response.success && response.data) {
         setUser(response.data.user);
-        router.push('/dashboard');
+        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
+        router.replace(destination);
       } else {
         throw new Error(response.message || 'Registration failed');
       }
@@ -136,16 +157,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [router]);
 
   // Google Sign-In handler
-  const googleSignIn = useCallback(async (token: string, tokenType: 'idToken' | 'accessToken' | 'authCode' = 'authCode') => {
+  const googleSignIn = useCallback(async (
+    token: string,
+    tokenType: 'idToken' | 'accessToken' | 'authCode' = 'authCode',
+    role?: 'user' | 'interviewer',
+  ) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const response = await authApi.googleSignIn(token, tokenType);
-      
+      const response = await authApi.googleSignIn(token, tokenType, role);
+
       if (response.success && response.data) {
         setUser(response.data.user);
-        router.push('/dashboard');
+
+        // First-time Google signup with no password yet → show set-password screen.
+        if (response.data.isNewUser && !response.data.user.hasPassword) {
+          router.replace('/auth/set-password');
+          return;
+        }
+
+        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
+        router.replace(destination);
       } else {
         throw new Error(response.message || 'Google sign-in failed');
       }
@@ -172,9 +205,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     try {
       const response = await authApi.updateProfile(data);
-      
+
       if (response.success && response.data) {
         setUser(response.data);
+        updateStoredUser(response.data);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Profile update failed';
@@ -189,6 +223,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authApi.getProfile();
       if (response.success && response.data) {
         setUser(response.data);
+        updateStoredUser(response.data);
       }
     } catch (err) {
       console.error('Failed to refresh user:', err);
@@ -200,16 +235,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
   }, []);
 
+  // Upgrade plan handler
+  const upgradePlan = useCallback(async (plan: 'pro' | 'free' = 'pro') => {
+    setError(null);
+    try {
+      const response = await authApi.upgradePlan(plan);
+      if (response.success && response.data) {
+        setUser(response.data.user);
+        // Replace the stored token so the new plan is reflected immediately
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('aiInterviewToken', response.data.token);
+          localStorage.setItem('aiInterviewUser', JSON.stringify(response.data.user));
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Plan upgrade failed';
+      setError(message);
+      throw err;
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     isLoading,
     isAuthenticated: !!user && checkAuth(),
+    isPro: user?.plan === 'pro',
     error,
     login,
     signup,
     googleSignIn,
     logout,
     updateProfile,
+    upgradePlan,
     refreshUser,
     clearError,
   };

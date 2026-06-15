@@ -4,8 +4,22 @@
  */
 
 const { body, param, validationResult } = require('express-validator');
-const { HTTP_STATUS, VALIDATION, DIFFICULTY_LEVELS } = require('../config/constants');
+const { HTTP_STATUS, VALIDATION, DIFFICULTY_LEVELS, ALLOWED_EMAIL_DOMAINS } = require('../config/constants');
 const mongoose = require('mongoose');
+
+const allowedDomains = new Set(ALLOWED_EMAIL_DOMAINS);
+
+/**
+ * Custom validator: only accept sign-ups from the allowlisted email domains
+ * (see ALLOWED_EMAIL_DOMAINS). Every other domain is rejected.
+ */
+const isAllowedEmailDomain = (value) => {
+  const domain = String(value).split('@')[1]?.toLowerCase();
+  if (!domain || !allowedDomains.has(domain)) {
+    throw new Error(`Email must be from an allowed domain: ${ALLOWED_EMAIL_DOMAINS.join(', ')}`);
+  }
+  return true;
+};
 
 /**
  * Middleware to check validation results and return errors
@@ -50,7 +64,8 @@ const registerValidation = [
     .trim()
     .notEmpty().withMessage('Email is required')
     .isEmail().withMessage('Please provide a valid email')
-    .normalizeEmail(),
+    .normalizeEmail()
+    .custom(isAllowedEmailDomain),
 
   body('password')
     .notEmpty().withMessage('Password is required')

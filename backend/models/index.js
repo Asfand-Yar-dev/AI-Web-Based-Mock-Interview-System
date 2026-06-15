@@ -19,6 +19,9 @@ const UserInterviewerSelection = require('./InterviewerSelection');
 const Schedule = require('./Schedule');
 const PaymentDetails = require('./PaymentDetails');
 
+// ── Premium Live Interview ─────────────────────────────────────────────────────
+const LiveBooking = require('./LiveBooking');
+
 module.exports = {
   User,
   Profile,
@@ -31,8 +34,12 @@ module.exports = {
   NLPEvaluation,
   FacialAnalysis,
   VocalAnalysis,
+  // Premium: human interviewer profile (replaces old AI-interviewer stub)
   Interviewer,
   UserInterviewerSelection,
   Schedule,
-  PaymentDetails
+  PaymentDetails,
+  // Premium: live booking lifecycle
+  LiveBooking,
 };
+

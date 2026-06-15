@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { motion } from "framer-motion";
-import { User, Bell, Shield, Palette, Loader2, Check, AlertCircle } from "lucide-react";
+import { User, Bell, Shield, Palette, Loader2, Check, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,12 +15,12 @@ import { toast } from "sonner";
 import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
-  const { isAuthenticated, isLoading: authLoading, user, updateProfile } = useRequireAuth() as ReturnType<typeof useAuth> & { isAuthenticated: boolean };
+  const { isAuthenticated, isLoading: authLoading, user, updateProfile, refreshUser } = useRequireAuth() as ReturnType<typeof useAuth> & { isAuthenticated: boolean };
   const { theme, setTheme } = useTheme();
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  
+
   const [notifications, setNotifications] = useState({
     email: true,
     practice: false,
@@ -37,6 +38,8 @@ export default function SettingsPage() {
   });
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showPw, setShowPw] = useState({ current: false, next: false });
+  const hasPassword = user?.hasPassword ?? (user?.authProvider !== "google");
 
   // Update profile when user data loads
   useState(() => {
@@ -69,8 +72,13 @@ export default function SettingsPage() {
   };
 
   const handleChangePassword = async () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword) {
-      toast.error("Please fill in all password fields");
+    if (!passwordData.newPassword) {
+      toast.error("Please enter a new password");
+      return;
+    }
+
+    if (hasPassword && !passwordData.currentPassword) {
+      toast.error("Please enter your current password");
       return;
     }
 
@@ -84,14 +92,27 @@ export default function SettingsPage() {
       return;
     }
 
+    if (hasPassword && passwordData.currentPassword === passwordData.newPassword) {
+      toast.error("New password must be different from your current password");
+      return;
+    }
+
     setIsChangingPassword(true);
     try {
-      await authApi.changePassword(passwordData.currentPassword, passwordData.newPassword);
-      toast.success("Password changed successfully!");
+      if (hasPassword) {
+        await authApi.changePassword(passwordData.currentPassword, passwordData.newPassword);
+        toast.success("Password changed successfully!");
+      } else {
+        await authApi.setPassword(passwordData.newPassword);
+        await refreshUser();
+        toast.success("Password set", {
+          description: "You can now log in with email and password.",
+        });
+      }
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       setShowPasswordForm(false);
     } catch (error) {
-      toast.error("Failed to change password", {
+      toast.error(hasPassword ? "Failed to change password" : "Failed to set password", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
@@ -130,6 +151,16 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="max-w-3xl space-y-8">
+        {/* Back Link */}
+        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Link>
+        </motion.div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -308,84 +339,105 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-4">
-            {!isGoogleUser && (
-              <>
-                {!showPasswordForm ? (
-                  <Button
-                    variant="outline"
-                    className="bg-transparent border-border/50"
-                    onClick={() => setShowPasswordForm(true)}
-                  >
-                    Change Password
-                  </Button>
-                ) : (
-                  <div className="space-y-4 p-4 rounded-xl bg-secondary/20 border border-border/30">
-                    <div className="space-y-2">
-                      <Label htmlFor="currentPassword">Current Password</Label>
+            {isGoogleUser && !hasPassword && !showPasswordForm && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/10 border border-accent/30">
+                <AlertCircle className="h-4 w-4 mt-0.5 text-accent shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-card-foreground">No password set</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    You signed up with Google. Add a password so you can also sign in with email.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!showPasswordForm ? (
+              <Button
+                variant="outline"
+                className="bg-transparent border-border/50"
+                onClick={() => setShowPasswordForm(true)}
+              >
+                {hasPassword ? "Change Password" : "Set Password"}
+              </Button>
+            ) : (
+              <div className="space-y-4 p-4 rounded-xl bg-secondary/20 border border-border/30">
+                {hasPassword && (
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <div className="relative">
                       <Input
                         id="currentPassword"
-                        type="password"
+                        type={showPw.current ? "text" : "password"}
                         value={passwordData.currentPassword}
                         onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                        className="bg-secondary/50 border-border/50"
+                        className="bg-secondary/50 border-border/50 pr-10"
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="newPassword">New Password</Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                        className="bg-secondary/50 border-border/50"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={passwordData.confirmPassword}
-                        onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="bg-secondary/50 border-border/50"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleChangePassword}
-                        disabled={isChangingPassword}
-                        className="bg-accent text-accent-foreground hover:bg-accent/90"
+                      <button
+                        type="button"
+                        onClick={() => setShowPw(s => ({ ...s, current: !s.current }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showPw.current ? "Hide password" : "Show password"}
                       >
-                        {isChangingPassword ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Changing...
-                          </>
-                        ) : (
-                          "Update Password"
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setShowPasswordForm(false);
-                          setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-                        }}
-                      >
-                        Cancel
-                      </Button>
+                        {showPw.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
                 )}
-              </>
-            )}
-
-            {isGoogleUser && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/30 border border-border/30">
-                <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Password management is handled by Google
-                </span>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showPw.next ? "text" : "password"}
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                      className="bg-secondary/50 border-border/50 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(s => ({ ...s, next: !s.next }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPw.next ? "Hide password" : "Show password"}
+                    >
+                      {showPw.next ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type={showPw.next ? "text" : "password"}
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="bg-secondary/50 border-border/50"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  >
+                    {isChangingPassword ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {hasPassword ? "Changing..." : "Setting..."}
+                      </>
+                    ) : (
+                      hasPassword ? "Update Password" : "Set Password"
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setShowPasswordForm(false);
+                      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             )}
           </div>

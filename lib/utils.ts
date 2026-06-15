@@ -33,3 +33,22 @@ export function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
 }
+
+/**
+ * The only email domains allowed at sign-up. Every other domain is rejected.
+ * Mirrors ALLOWED_EMAIL_DOMAINS in backend/config/constants.js — keep in sync.
+ */
+export const ALLOWED_EMAIL_DOMAINS = [
+  'gmail.com',
+  'outlook.com',
+  'icloud.com',
+  'student.buitms.edu.pk',
+]
+
+/**
+ * True only if the email's domain is in the allowlist (e.g. @gmail.com).
+ */
+export function isAllowedEmailDomain(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  return !!domain && ALLOWED_EMAIL_DOMAINS.includes(domain)
+}

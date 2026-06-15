@@ -1,16 +1,19 @@
+
 /**
  * =============================================================================
  * USER ROUTES
  * =============================================================================
+ * 
  * 
  * Defines all authentication and user-related API endpoints.
  * 
  * ROUTE STRUCTURE:
  * - Public Routes (no authentication required):
  *   - POST /register          - Create new user account
+ * 
  *   - POST /login             - Authenticate with email/password
  *   - POST /google            - Authenticate with Google OAuth
- *   - POST /forgot-password   - Request password reset token
+*   - POST /forgot-password   - Request password reset token
  *   - POST /reset-password    - Reset password with token
  *   - POST /refresh-token     - Get new access token
  * 
@@ -38,11 +41,13 @@ const {
   getProfile,
   updateProfile,
   changePassword,
+  setPassword,
   verifyToken,
   // Phase 2 additions:
   logout,
   refreshToken,
   forgotPassword,
+  verifyResetOtp,
   resetPassword,
   updateSettings,
 } = require('../controllers/authController');
@@ -54,7 +59,8 @@ const { registerValidation, loginValidation } = require('../middleware/validatio
 
 // Import models for stats endpoint
 const InterviewSession = require('../models/InterviewSession');
-const { HTTP_STATUS } = require('../config/constants');
+const User = require('../models/User');
+const { HTTP_STATUS, USER_PLANS } = require('../config/constants');
 
 /**
  * =============================================================================
@@ -91,8 +97,15 @@ router.post('/google', asyncHandler(googleSignIn));
 router.post('/forgot-password', asyncHandler(forgotPassword));
 
 /**
+ * @route   POST /api/users/verify-reset-otp
+ * @desc    Verify the emailed OTP without consuming it (unlocks the reset step)
+ * @access  Public
+ */
+router.post('/verify-reset-otp', asyncHandler(verifyResetOtp));
+
+/**
  * @route   POST /api/users/reset-password
- * @desc    Reset password using the token from forgot-password
+ * @desc    Reset password using the OTP from forgot-password
  * @access  Public
  */
 router.post('/reset-password', asyncHandler(resetPassword));
@@ -130,6 +143,13 @@ router.put('/me', authenticate, asyncHandler(updateProfile));
  * @access  Private
  */
 router.put('/change-password', authenticate, asyncHandler(changePassword));
+
+/**
+ * @route   POST /api/users/set-password
+ * @desc    Set a password for an account that has none yet (e.g. Google sign-up)
+ * @access  Private
+ */
+router.post('/set-password', authenticate, asyncHandler(setPassword));
 
 /**
  * @route   GET /api/users/verify-token
@@ -248,6 +268,56 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
       inProgressCount: stats?.inProgressCount || 0,
       cancelledCount: stats?.cancelledCount || 0,
     }
+  });
+}));
+
+/**
+ * @route   POST /api/users/upgrade-plan
+ * @desc    Upgrade the current user's plan to 'pro' (stub — no payment gateway)
+ * @access  Private
+ *
+ * Body: { plan: 'pro' | 'free' }  (users may only request 'pro'; admins use the admin route)
+ */
+router.post('/upgrade-plan', authenticate, asyncHandler(async (req, res) => {
+  const { plan } = req.body;
+
+  if (!plan || !Object.values(USER_PLANS).includes(plan)) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: `Invalid plan. Must be one of: ${Object.values(USER_PLANS).join(', ')}`
+    });
+  }
+
+  // Regular users can only request an upgrade, not a downgrade (admin handles that)
+  if (req.user.role !== 'admin' && plan !== USER_PLANS.PRO) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      success: false,
+      message: 'You can only upgrade your plan. Contact support to downgrade.'
+    });
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'User not found.' });
+  }
+
+  user.plan = plan;
+  user.planActivatedAt = new Date();
+  await user.save();
+
+  // Issue a fresh JWT so the new plan is immediately reflected without re-login
+  const jwt = require('jsonwebtoken');
+  const { TOKEN_EXPIRY } = require('../config/constants');
+  const newToken = jwt.sign(
+    { id: user._id, email: user.email, role: user.user_role, plan: user.plan },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || TOKEN_EXPIRY.ACCESS }
+  );
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: `Plan upgraded to ${plan} successfully.`,
+    data: { user: user.toSafeObject(), token: newToken }
   });
 }));
 

@@ -1,22 +1,33 @@
 "use client"
 
 import type React from "react"
-import { Suspense } from "react"
+import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Sparkles, LayoutDashboard, Play, FileText, Settings, LogOut, Menu, X } from "lucide-react"
+import { Sparkles, LayoutDashboard, Play, FileText, Settings, LogOut, Menu, X, Users, ShieldCheck, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
-import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { liveInterviewApi } from "@/lib/liveInterviewApi"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "New Interview", href: "/interview/setup", icon: Play },
+  { name: "New Interview", href: "/interview/new", icon: Play },
+  { name: "View Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "History", href: "/dashboard/history", icon: FileText },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
+
+// Route the brand logo to whichever dashboard matches the user's role,
+// so clicking it from any inner page lands them on their own home.
+function roleHome(role?: string | null): string {
+  const r = String(role || "").trim().toLowerCase()
+  if (r === "interviewer") return "/interviewer-dashboard"
+  if (r === "admin") return "/admin-dashboard"
+  return "/dashboard"
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -33,6 +44,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user } = useAuth()
+  const homeHref = roleHome(user?.user_role)
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,7 +57,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={homeHref} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
             <Sparkles className="h-4 w-4 text-accent-foreground" />
           </div>
@@ -91,6 +104,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
 function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () => void }) {
   const { user, logout } = useAuth()
+  const [pendingCount, setPendingCount] = useState<number>(0)
 
   const getInitials = (name?: string, email?: string) => {
     const cleanedName = name?.trim() || ""
@@ -118,11 +132,26 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
   const displayName = user?.name || user?.email || "User"
   const userEmail = user?.email || ""
 
+  const userRole = String(user?.user_role || (user as any)?.role || "").trim().toLowerCase()
+  const isInterviewer = userRole === "interviewer"
+  const isAdmin = userRole === "admin"
+
+  useEffect(() => {
+    if (isInterviewer) {
+      liveInterviewApi.myBookings("interviewer")
+        .then((res) => {
+          const count = (res.data ?? []).filter((b) => b.status === "pending_approval").length
+          setPendingCount(count)
+        })
+        .catch((err) => console.error("Failed to fetch pending bookings count:", err))
+    }
+  }, [isInterviewer])
+
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={roleHome(userRole)} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
             <Sparkles className="h-4 w-4 text-accent-foreground" />
           </div>
@@ -156,6 +185,49 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
             </Link>
           )
         })}
+
+        {(isInterviewer || isAdmin) && (
+          <div className="mt-6 border-t border-sidebar-border pt-4 space-y-1">
+            <p className="px-4 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider mb-2">Switch Panel</p>
+            {isInterviewer && (
+              <Link
+                href="/interviewer-dashboard"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all",
+                  pathname === "/interviewer-dashboard"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-accent" />
+                  <span>Interviewer Panel</span>
+                </div>
+                {pendingCount > 0 && (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {pendingCount}
+                  </span>
+                )}
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href="/admin-dashboard"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
+                  pathname === "/admin-dashboard"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                )}
+              >
+                <ShieldCheck className="h-5 w-5 text-accent" />
+                Admin Panel
+              </Link>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* User Section */}
@@ -177,6 +249,7 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
             <p className="text-sm font-medium text-sidebar-foreground truncate">{displayName}</p>
             <p className="text-xs text-sidebar-foreground/60 truncate">{userEmail}</p>
           </div>
+          <ThemeToggle />
         </div>
         <Button
           variant="ghost"

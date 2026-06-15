@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { toast } from "sonner"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -38,16 +38,14 @@ export function Navbar() {
             >
               How it Works
             </Link>
-            <button
-              onClick={() => toast.info("Coming Soon", { description: "Pricing information will be available soon." })}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
+            <Link href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Pricing
-            </button>
+            </Link>
           </div>
 
           {/* Desktop Auth Buttons */}
-          <div className="hidden items-center gap-4 md:flex">
+          <div className="hidden items-center gap-3 md:flex">
+            <ThemeToggle />
             <Link href="/login">
               <Button variant="ghost" className="text-muted-foreground hover:text-foreground bg-transparent ">
                 Sign in
@@ -92,15 +90,13 @@ export function Navbar() {
               >
                 How it Works
               </Link>
-              <button
-                onClick={() => {
-                  toast.info("Coming Soon", { description: "Pricing information will be available soon." })
-                  setIsOpen(false)
-                }}
+              <Link
+                href="#pricing"
                 className="block text-sm text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setIsOpen(false)}
               >
                 Pricing
-              </button>
+              </Link>
               <div className="flex flex-col gap-3 pt-4">
                 <Link href="/login">
                   <Button variant="outline" className="w-full bg-transparent">

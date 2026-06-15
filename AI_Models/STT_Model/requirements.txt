@@ -1,0 +1,9 @@
+openai-whisper
+torch
+torchaudio
+numpy
+pathlib
+typing
+
+# Optional: For drag-and-drop support in GUI
+# tkinterdnd2

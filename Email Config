@@ -1,0 +1,42 @@
+How Gmail SMTP works                                                                                                                                 
+                                                                                           
+  Gmail lets you use their mail servers to send emails from your own code. Normally Google blocks this for security, but they allow it through App 
+  Passwords — a special 16-character password generated just for one app.                                                                              
+   
+  ---                                                                                                                                                  
+  Step-by-step setup                                        
+
+  1. Enable 2-Step Verification on your Google account
+  - Go to https://myaccount.google.com → Security
+  - Turn on 2-Step Verification if it's off (required before App Passwords work)
+
+  2. Generate an App Password
+  - Go to: Google Account → Security → App passwords (search for it if you don't see it)
+  - Select app: Mail, Select device: Other → type "Intervexa" → click Generate
+  - Google gives you a 16-character password like abcd efgh ijkl mnop — copy it
+
+  3. Add to backend/.env
+  SMTP_HOST=smtp.gmail.com
+  SMTP_PORT=587
+  SMTP_SECURE=false
+  SMTP_USER=your.email@gmail.com
+  SMTP_PASS=abcdefghijklmnop
+  SMTP_FROM="Intervexa" <your.email@gmail.com>
+  FRONTEND_URL=http://localhost:3000
+  ▎ Remove spaces from the app password. Use the same Gmail account for both SMTP_USER and SMTP_FROM.
+
+  4. Restart the backend
+  cd backend && npm run dev
+
+  ---
+  What happens then
+
+  When a user registers → your backend calls Gmail's SMTP server on port 587 → Gmail sends the email from your address → user receives it in their
+  inbox with a verify link pointing to http://localhost:3000/verify-email?token=....
+
+  ---
+  Limitations to know
+
+  - Gmail free tier allows ~500 emails/day — more than enough for a FYP demo
+  - The verification link uses localhost:3000, so whoever clicks it must open it on the same machine running the frontend. For a demo to others, set
+  FRONTEND_URL to your deployed/ngrok URL instead.

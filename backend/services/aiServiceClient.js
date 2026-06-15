@@ -280,6 +280,20 @@ function getCircuitBreakerStatus() {
   };
 }
 
+/**
+ * Generate next vetting question for interviewer verification.
+ */
+async function generateVettingQuestion(profile, conversation) {
+  return _postJSON('/api/ai/generate-vetting-question', { profile, conversation });
+}
+
+/**
+ * Perform final evaluation of the vetting conversation transcript.
+ */
+async function evaluateVetting(profile, conversation) {
+  return _postJSON('/api/ai/evaluate-vetting', { profile, conversation });
+}
+
 module.exports = {
   transcribeAudio,
   analyzeNLP,
@@ -289,6 +303,8 @@ module.exports = {
   generateFeedback,
   fuseScores,
   analyzeAnswerComprehensive,
+  generateVettingQuestion,
+  evaluateVetting,
   healthCheck,
   getCircuitBreakerStatus,
 };

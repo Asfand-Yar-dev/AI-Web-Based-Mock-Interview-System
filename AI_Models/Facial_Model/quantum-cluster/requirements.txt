@@ -1,0 +1,19 @@
+# Smart Mock Interview System - Facial Expression Analysis Module
+# Dependencies for the Facial Expression Analysis System
+
+# Core Deep Learning and Computer Vision
+deepface==0.0.79
+opencv-python==4.8.1.78
+numpy==1.24.3
+tf-keras==2.16.0
+
+# TensorFlow (Required by DeepFace)
+tensorflow==2.16.1
+
+# Additional useful libraries
+pillow==10.1.0
+matplotlib==3.8.2
+
+# For better performance (optional but recommended)
+# Note: Uncomment if you have CUDA-compatible GPU
+# tensorflow-gpu==2.16.1

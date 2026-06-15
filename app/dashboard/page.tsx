@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { RecentSessions } from "@/components/dashboard/recent-sessions";
-import { QuickActions } from "@/components/dashboard/quick-actions";
 import { motion } from "framer-motion";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useAuth, useRequireAuth } from "@/contexts/auth-context";
@@ -38,9 +38,22 @@ function mapSessionToDisplay(session: InterviewSession): DisplaySession {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const { user } = useAuth();
   
+  // Guard role: redirect interviewer accounts to /interviewer-dashboard
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      const role = String(
+        (user as any).user_role ?? (user as any).role ?? ""
+      ).trim().toLowerCase();
+      if (role === "interviewer") {
+        router.replace("/interviewer-dashboard");
+      }
+    }
+  }, [authLoading, isAuthenticated, user, router]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -175,15 +188,8 @@ export default function DashboardPage() {
           confidenceImprovement={stats.confidenceImprovement}
         />
 
-        {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <RecentSessions sessions={stats.recentSessions} />
-          </div>
-          <div>
-            <QuickActions />
-          </div>
-        </div>
+        {/* Recent Sessions */}
+        <RecentSessions sessions={stats.recentSessions} />
       </div>
     </DashboardLayout>
   );
