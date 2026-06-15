@@ -1,0 +1,60 @@
+# =============================================================================
+# Intervexa — Python AI Dependencies (consolidated)
+# =============================================================================
+# Covers every Python service orchestrated by ai_gateway/app.py:
+#   STT (Whisper) · NLP (Sentence-BERT) · Voice (Wav2Vec2) ·
+#   Facial (DeepFace) · Answer Generation (Groq) · Fusion
+#
+# Recommended install (Python 3.10 or 3.11, in a fresh virtualenv):
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate            # Windows
+#   # source .venv/bin/activate       # macOS/Linux
+#
+#   python -m pip install --upgrade pip setuptools wheel
+#   pip install -r requirements.txt
+#   pip install -r requirements-stt.txt --no-build-isolation
+#
+# Whisper lives in requirements-stt.txt: pip's *isolated* build runs Whisper's
+# setup.py before pkg_resources is visible, which breaks on Windows. Install it
+# AFTER this file (so torch is already present) with --no-build-isolation.
+#
+# Then: python ai_gateway/app.py   (serves on http://localhost:8000)
+# =============================================================================
+
+setuptools>=69.0.0,<82.0.0
+wheel
+
+# --- Web framework (ai_gateway) ----------------------------------------------
+flask==3.1.1
+flask-cors==5.0.1
+gunicorn==23.0.0
+python-dotenv==1.1.0
+
+# --- Answer Generation (Groq via OpenAI-compatible SDK) -----------------------
+# interviewer.py talks to https://api.groq.com/openai/v1 using the openai SDK.
+# Requires GROQ_API_KEY in ai_gateway/.env (or backend/.env).
+openai==1.59.7
+
+# --- NLP Evaluation (Sentence-BERT) ------------------------------------------
+sentence-transformers==3.4.1
+scikit-learn==1.6.1
+
+# --- Voice Analysis (Wav2Vec2 + librosa) -------------------------------------
+transformers==4.48.3
+librosa==0.10.2.post1
+soundfile==0.13.1
+scipy==1.15.2
+
+# --- Common ML core ----------------------------------------------------------
+torch==2.6.0
+numpy==2.2.3
+
+# --- Facial Analysis (DeepFace) — OPTIONAL -----------------------------------
+# Heavy: pulls in TensorFlow. Skip this block if you don't need facial scoring
+# (the gateway degrades gracefully — /api/ai/analyze-face just returns 503).
+# tensorflow>=2.17 is required to coexist with numpy 2.x above.
+deepface==0.0.93
+opencv-python==4.11.0.86
+tensorflow>=2.17.0
+tf-keras>=2.17.0

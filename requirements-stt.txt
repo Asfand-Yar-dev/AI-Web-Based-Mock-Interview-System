@@ -1,0 +1,13 @@
+# =============================================================================
+# Speech-to-Text (Whisper) — install AFTER requirements.txt
+# =============================================================================
+# torch must already be installed (it's in requirements.txt). Pip's isolated
+# build breaks Whisper's setup.py on Windows (pkg_resources not visible), so:
+#
+#   pip install -r requirements-stt.txt --no-build-isolation
+#
+# First run will download the Whisper weights. To pre-download (avoids the first
+# transcription blocking):  python STT_Model/setup_model.py --model-size base
+# =============================================================================
+
+openai-whisper==20240930
