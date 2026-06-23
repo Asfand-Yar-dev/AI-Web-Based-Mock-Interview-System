@@ -80,6 +80,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const [camOn, setCamOn]         = useState(true);
   const [elapsed, setElapsed]     = useState(0); // seconds
   const [remoteConnected, setRemoteConnected] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   // ── Interviewer feedback form (shown after the interviewer ends the call) ──
   const [fbScore, setFbScore]           = useState(70);
@@ -117,7 +118,14 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
         pc.ontrack = (ev) => {
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ev.streams[0];
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = ev.streams[0];
+            // Explicitly play — catch autoplay-with-sound blocks
+            remoteVideoRef.current.play().catch(() => {
+              console.warn("Autoplay blocked — showing unmute button");
+              setAudioBlocked(true);
+            });
+          }
           setRemoteConnected(true);
         };
 
@@ -281,6 +289,20 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
           playsInline
           className="h-full w-full object-cover"
         />
+
+        {/* Tap-to-unmute overlay (shown when browser blocks autoplay audio) */}
+        {audioBlocked && (
+          <button
+            onClick={() => {
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.play().then(() => setAudioBlocked(false)).catch(() => {});
+              }
+            }}
+            className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg animate-pulse hover:bg-accent/80 transition-colors"
+          >
+            🔊 Tap to Unmute Audio
+          </button>
+        )}
 
         {/* Remote label */}
         {remoteConnected && (
