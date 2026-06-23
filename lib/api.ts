@@ -504,6 +504,7 @@ export const authApi = {
       completedInterviews: number;
       averageScore: number;
       confidenceImprovement: number;
+      currentStreak: number;
       recentSessions: Array<{
         id: string;
         sessionType: string;
@@ -656,6 +657,10 @@ export const interviewApi = {
       sessionId: string;
       status: string;
       sessionType: string;
+      jobTitle?: string;
+      difficulty?: string;
+      startedAt?: string;
+      completedAt?: string;
       overallScore: number;
       totalQuestions: number;
       questionsAnswered: number;

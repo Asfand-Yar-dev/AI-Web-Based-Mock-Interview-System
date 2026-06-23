@@ -38,6 +38,14 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Resolve the home surface for a given role. Admins land on the admin panel,
+// interviewers on their dashboard, everyone else on the candidate dashboard.
+function roleHomePath(role?: string): string {
+  if (role === 'admin') return '/admin-dashboard';
+  if (role === 'interviewer') return '/interviewer-dashboard';
+  return '/dashboard';
+}
+
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ['/', '/login', '/signup', '/forgot-password', '/verify-email'];
 
@@ -101,8 +109,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // button and any direct navigation back to an auth page after sign-in.
   useEffect(() => {
     if (!isLoading && user && AUTH_ONLY_ROUTES.includes(pathname)) {
-      const destination = user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
-      router.replace(destination);
+      router.replace(roleHomePath(user.user_role));
     }
   }, [isLoading, user, pathname, router]);
 
@@ -116,10 +123,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (response.success && response.data) {
         setUser(response.data.user);
-        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
         // replace (not push) so /login is dropped from history — back button
         // from the dashboard goes to the landing page, not back to login.
-        router.replace(destination);
+        router.replace(roleHomePath(response.data.user.user_role));
       } else {
         throw new Error(response.message || 'Login failed');
       }
@@ -142,8 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (response.success && response.data) {
         setUser(response.data.user);
-        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
-        router.replace(destination);
+        router.replace(roleHomePath(response.data.user.user_role));
       } else {
         throw new Error(response.message || 'Registration failed');
       }
@@ -177,8 +182,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        const destination = response.data.user.user_role === 'interviewer' ? '/interviewer-dashboard' : '/dashboard';
-        router.replace(destination);
+        router.replace(roleHomePath(response.data.user.user_role));
       } else {
         throw new Error(response.message || 'Google sign-in failed');
       }
@@ -297,16 +301,19 @@ export function useAuth(): AuthContextType {
  * Hook to protect routes - redirects to login if not authenticated
  */
 export function useRequireAuth() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated, isLoading } = auth;
   const router = useRouter();
-  
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
-  
-  return { isAuthenticated, isLoading, user };
+
+  // Return the full auth context (login, updateProfile, refreshUser, …) plus
+  // the redirect guard, so protected pages can both guard and act on auth.
+  return auth;
 }
 
 /**

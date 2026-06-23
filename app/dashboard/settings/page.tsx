@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { motion } from "framer-motion";
-import { User, Bell, Shield, Palette, Loader2, Check, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { User, Bell, Shield, Palette, Loader2, Check, AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,7 +167,7 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">Settings</h1>
           <p className="text-muted-foreground mt-1">
             Manage your account preferences and settings
           </p>
@@ -178,14 +178,14 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
+          className="rounded-[18px] border border-border bg-card p-6"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="rounded-xl bg-accent/10 p-2">
               <User className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-card-foreground">
+              <h2 className="font-display text-lg font-semibold text-card-foreground">
                 Profile
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -257,14 +257,14 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
+          className="rounded-[18px] border border-border bg-card p-6"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="rounded-xl bg-accent/10 p-2">
               <Bell className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-card-foreground">
+              <h2 className="font-display text-lg font-semibold text-card-foreground">
                 Notifications
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -322,14 +322,14 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.3 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
+          className="rounded-[18px] border border-border bg-card p-6"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="rounded-xl bg-accent/10 p-2">
               <Shield className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-card-foreground">
+              <h2 className="font-display text-lg font-semibold text-card-foreground">
                 Security
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -354,7 +354,7 @@ export default function SettingsPage() {
             {!showPasswordForm ? (
               <Button
                 variant="outline"
-                className="bg-transparent border-border/50"
+                className="border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:text-accent font-medium"
                 onClick={() => setShowPasswordForm(true)}
               >
                 {hasPassword ? "Change Password" : "Set Password"}
@@ -448,14 +448,14 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.4 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
+          className="rounded-[18px] border border-border bg-card p-6"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="rounded-xl bg-accent/10 p-2">
               <Palette className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-card-foreground">
+              <h2 className="font-display text-lg font-semibold text-card-foreground">
                 Appearance
               </h2>
               <p className="text-sm text-muted-foreground">

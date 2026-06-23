@@ -257,6 +257,42 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
     confidenceImprovement = latest - previous;
   }
 
+  // Current streak — consecutive calendar days (ending today or yesterday)
+  // on which the user did at least one interview. A brand-new user with no
+  // sessions has a streak of 0.
+  const activeDays = await InterviewSession.aggregate([
+    { $match: { user_id: userObjectId } },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+      }
+    },
+    { $sort: { _id: -1 } },
+  ]);
+
+  let currentStreak = 0;
+  if (activeDays.length > 0) {
+    const dayInMs = 24 * 60 * 60 * 1000;
+    const toDayNumber = (dateStr) => Math.floor(new Date(`${dateStr}T00:00:00Z`).getTime() / dayInMs);
+    const todayNumber = Math.floor(Date.now() / dayInMs);
+
+    const mostRecent = toDayNumber(activeDays[0]._id);
+    // Streak is only "current" if the latest activity was today or yesterday.
+    if (todayNumber - mostRecent <= 1) {
+      currentStreak = 1;
+      let prevDay = mostRecent;
+      for (let i = 1; i < activeDays.length; i++) {
+        const day = toDayNumber(activeDays[i]._id);
+        if (prevDay - day === 1) {
+          currentStreak += 1;
+          prevDay = day;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
   res.status(HTTP_STATUS.OK).json({
     success: true,
     data: {
@@ -264,6 +300,7 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
       completedInterviews: completedCount,
       averageScore,
       confidenceImprovement,
+      currentStreak,
       recentSessions: recentSessionsFormatted,
       inProgressCount: stats?.inProgressCount || 0,
       cancelledCount: stats?.cancelledCount || 0,

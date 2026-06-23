@@ -34,8 +34,8 @@ function BookingSuccessContent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-2xl border border-border/50 bg-card p-8 text-center shadow-xl">
         {/* Icon */}
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-success/15 ring-1 ring-success/30">
+          <CheckCircle2 className="h-8 w-8 text-success" />
         </div>
 
         <h1 className="text-2xl font-bold text-card-foreground">Payment received!</h1>

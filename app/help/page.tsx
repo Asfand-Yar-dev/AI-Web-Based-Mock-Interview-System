@@ -57,7 +57,7 @@ const SECTIONS: Section[] = [
   {
     icon: Camera,
     title: 'Camera & Facial Analysis',
-    color: 'text-purple-500',
+    color: 'text-accent',
     faqs: [
       {
         q: 'What does the camera capture during an interview?',
@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
   {
     icon: Brain,
     title: 'AI Scoring & Feedback',
-    color: 'text-emerald-500',
+    color: 'text-success',
     faqs: [
       {
         q: 'How is my score calculated?',
@@ -99,7 +99,7 @@ const SECTIONS: Section[] = [
   {
     icon: BarChart3,
     title: 'Progress & Dashboard',
-    color: 'text-blue-500',
+    color: 'text-info',
     faqs: [
       {
         q: 'How does the Progress Chart work?',
@@ -114,7 +114,7 @@ const SECTIONS: Section[] = [
   {
     icon: FileDown,
     title: 'Downloading Reports',
-    color: 'text-orange-500',
+    color: 'text-warning',
     faqs: [
       {
         q: 'How do I download my interview report?',
@@ -129,7 +129,7 @@ const SECTIONS: Section[] = [
   {
     icon: Globe,
     title: 'Account & Verification',
-    color: 'text-teal-500',
+    color: 'text-success',
     faqs: [
       {
         q: 'Why do I need to verify my email?',
@@ -148,7 +148,7 @@ const SECTIONS: Section[] = [
   {
     icon: Shield,
     title: 'Privacy & Security',
-    color: 'text-red-500',
+    color: 'text-destructive',
     faqs: [
       {
         q: 'Is my audio and video stored?',

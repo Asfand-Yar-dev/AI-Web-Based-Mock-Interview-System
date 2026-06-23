@@ -8,6 +8,11 @@ Formula
 -------
     Behavioral Score = (0.6 × Voice Score) + (0.4 × Facial Score)
 
+When one modality is missing we do **not** treat it as a hard 0 (which would
+unfairly tank an otherwise strong score). Instead the remaining modality is
+reweighted to 100% and a small, controlled penalty is applied to acknowledge
+the absent input — so the score still reflects actual performance.
+
 The module is **purely mathematical / rule-based** — no neural networks
 are loaded or executed here.
 
@@ -34,6 +39,12 @@ class FusionEngine:
 
     VOICE_WEIGHT: float = 0.6
     FACE_WEIGHT: float = 0.4
+
+    # Multiplier applied when only ONE modality is available. The present
+    # modality is reweighted to 100%, then nudged down slightly to acknowledge
+    # the missing input — without the steep drop a hard-0 modality would cause.
+    # 1.0 = pure reweighting (no penalty); 0.95 = a gentle 5% reduction.
+    SINGLE_MODALITY_PENALTY: float = 0.95
 
     # ------------------------------------------------------------------ #
     #  Score-range → label & feedback mapping                             #
@@ -131,15 +142,30 @@ class FusionEngine:
             }``
         """
 
-        # -- 1. Safely extract scores & emotions ---------------------- #
-        voice_score, voice_emotion = self._extract(voice_data, "Voice")
-        face_score, face_emotion = self._extract(face_data, "Face")
+        # -- 1. Safely extract scores, emotions & availability -------- #
+        voice_score, voice_emotion, voice_available = self._extract(
+            voice_data, "Voice"
+        )
+        face_score, face_emotion, face_available = self._extract(
+            face_data, "Face"
+        )
 
         # -- 2. Apply the weighted formula ----------------------------- #
-        raw_score: float = (
-            self.VOICE_WEIGHT * voice_score
-            + self.FACE_WEIGHT * face_score
-        )
+        # Reweight to whichever modalities are actually present rather than
+        # letting a missing one contribute a hard 0 and drag the score down.
+        if voice_available and face_available:
+            raw_score: float = (
+                self.VOICE_WEIGHT * voice_score
+                + self.FACE_WEIGHT * face_score
+            )
+        elif voice_available:
+            # Voice carries 100% of the weight, minus a small controlled penalty.
+            raw_score = voice_score * self.SINGLE_MODALITY_PENALTY
+        elif face_available:
+            raw_score = face_score * self.SINGLE_MODALITY_PENALTY
+        else:
+            # No behavioral data at all → nothing to score.
+            raw_score = 0.0
 
         # Clamp between 0 and 100
         final_score: float = round(min(max(raw_score, 0.0), 100.0), 2)
@@ -169,12 +195,15 @@ class FusionEngine:
     @staticmethod
     def _extract(
         data: Optional[Dict[str, Any]], source_name: str
-    ) -> tuple[float, str]:
-        """Return ``(score, emotion)`` from a data dict, defaulting
-        gracefully when the dict or individual keys are missing.
+    ) -> tuple[float, str, bool]:
+        """Return ``(score, emotion, available)`` from a data dict.
+
+        ``available`` is ``False`` only when the modality is genuinely absent
+        (``data is None``) — a modality that is present but legitimately scored
+        0 still counts as available so it is fused, not reweighted away.
         """
         if data is None:
-            return 0.0, "N/A"
+            return 0.0, "N/A", False
 
         try:
             score = float(data.get("score", 0))
@@ -182,7 +211,7 @@ class FusionEngine:
             score = 0.0
 
         emotion = str(data.get("emotion", "N/A")).strip() or "N/A"
-        return score, emotion
+        return score, emotion, True
 
     def _get_feedback(self, score: float) -> tuple[str, str]:
         """Map a score to its ``(label, feedback)`` pair using the

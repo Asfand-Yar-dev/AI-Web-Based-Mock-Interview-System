@@ -24,12 +24,21 @@ import {
   AlertCircle,
   Upload,
   CheckCircle2,
+  ClipboardCheck,
+  Brain,
 } from "lucide-react";
 import { API_BASE_URL, SOCKET_IO_PATH, STORAGE_KEYS } from "@/lib/api-config";
+import { liveInterviewApi } from "@/lib/liveInterviewApi";
 
 interface Props {
   bookingId: string;
   meetingRoomId: string;
+  /**
+   * Whether the current viewer is the applicant (candidate). Only the
+   * applicant records and uploads their stream for the AI pipeline — the
+   * backend rejects recording uploads from anyone else.
+   */
+  isApplicant?: boolean;
   /** Called after recording upload completes */
   onEnded?: () => void;
   /** Name shown on local feed label */
@@ -42,7 +51,7 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-type Phase = "idle" | "connecting" | "in-call" | "ended" | "uploading" | "done" | "error";
+type Phase = "idle" | "connecting" | "in-call" | "ended" | "uploading" | "feedback" | "done" | "error";
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle:       "Initialising…",
@@ -50,11 +59,12 @@ const PHASE_LABEL: Record<Phase, string> = {
   "in-call":  "Connected",
   ended:      "Call ended",
   uploading:  "Uploading recording…",
+  feedback:   "Awaiting your feedback",
   done:       "Processing complete",
   error:      "Connection error",
 };
 
-export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName = "You", remoteName = "Interviewer" }: Props) {
+export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true, onEnded, localName = "You", remoteName = "Interviewer" }: Props) {
   const localVideoRef  = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const pcRef          = useRef<RTCPeerConnection | null>(null);
@@ -70,6 +80,13 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
   const [camOn, setCamOn]         = useState(true);
   const [elapsed, setElapsed]     = useState(0); // seconds
   const [remoteConnected, setRemoteConnected] = useState(false);
+
+  // ── Interviewer feedback form (shown after the interviewer ends the call) ──
+  const [fbScore, setFbScore]           = useState(70);
+  const [fbFeedback, setFbFeedback]     = useState("");
+  const [fbTranscript, setFbTranscript] = useState("");
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbError, setFbError]           = useState<string | null>(null);
 
   // ── Timer ──
   useEffect(() => {
@@ -104,14 +121,17 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
           setRemoteConnected(true);
         };
 
-        // 3. Local recording for the AI pipeline
-        try {
-          const mr = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9,opus" });
-          mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-          mr.start(2000);
-          recorderRef.current = mr;
-        } catch (recErr) {
-          console.warn("MediaRecorder unavailable — recording disabled.", recErr);
+        // 3. Local recording for the AI pipeline (applicant only — the backend
+        //    only accepts the applicant's recording).
+        if (isApplicant) {
+          try {
+            const mr = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9,opus" });
+            mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+            mr.start(2000);
+            recorderRef.current = mr;
+          } catch (recErr) {
+            console.warn("MediaRecorder unavailable — recording disabled.", recErr);
+          }
         }
 
         // 4. Socket.IO signalling
@@ -183,6 +203,16 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
   async function endCall() {
     setPhase("ended");
     cleanup();
+
+    // Interviewer: collect manual feedback (score + notes + optional Q&A
+    // transcript). Submitting triggers the AI analysis + combined/average score
+    // on the backend, then routes everyone to the 360° report.
+    if (!isApplicant) {
+      setPhase("feedback");
+      return;
+    }
+
+    // Applicant: upload the recording for the AI pipeline, then leave.
     setPhase("uploading");
     try {
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
@@ -192,6 +222,32 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
     } catch (err: any) {
       setErrorMsg(err?.message || "Upload failed");
       setPhase("error");
+    }
+  }
+
+  async function submitFeedback() {
+    setFbError(null);
+    if (fbFeedback.trim().length < 10) {
+      setFbError("Please write at least 10 characters of feedback.");
+      return;
+    }
+    if (fbScore < 0 || fbScore > 100) {
+      setFbError("Score must be between 0 and 100.");
+      return;
+    }
+    setFbSubmitting(true);
+    try {
+      await liveInterviewApi.submitInterviewerFeedback(
+        bookingId,
+        fbScore,
+        fbFeedback.trim(),
+        fbTranscript.trim() || undefined,
+      );
+      setPhase("done");
+      onEnded?.();
+    } catch (err: any) {
+      setFbError(err?.message || "Failed to submit feedback. Please try again.");
+      setFbSubmitting(false);
     }
   }
 
@@ -212,6 +268,8 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
   const hh = String(Math.floor(elapsed / 3600)).padStart(2, "0");
   const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
+
+  const fbScoreColor = fbScore >= 80 ? "#10b981" : fbScore >= 60 ? "#f59e0b" : "#ef4444";
 
   return (
     <div className="relative flex h-screen w-full flex-col bg-black">
@@ -266,7 +324,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+                  <CheckCircle2 className="h-10 w-10 text-success" />
                   <p className="text-base font-medium text-white">Upload complete</p>
                   <p className="text-xs text-white/50">AI analysis will begin shortly (~10 min)</p>
                 </>
@@ -280,9 +338,9 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
           {/* Connection status */}
           <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 backdrop-blur-sm">
             {phase === "in-call" ? (
-              <Wifi className="h-4 w-4 text-emerald-400" />
+              <Wifi className="h-4 w-4 text-success" />
             ) : (
-              <WifiOff className="h-4 w-4 text-amber-400" />
+              <WifiOff className="h-4 w-4 text-warning" />
             )}
             <span className="text-xs font-medium text-white">{PHASE_LABEL[phase]}</span>
           </div>
@@ -359,6 +417,103 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, onEnded, localName
           </button>
         )}
       </div>
+
+      {/* ── Interviewer feedback form (after the interviewer ends the call) ── */}
+      <AnimatePresence>
+        {phase === "feedback" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/90 p-4 backdrop-blur-sm sm:items-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className="my-auto w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl"
+            >
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15">
+                  <ClipboardCheck className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Interview Feedback</h2>
+                  <p className="text-xs text-white/50">Your score and notes complete the candidate&apos;s 360° report.</p>
+                </div>
+              </div>
+
+              {/* Score */}
+              <label className="mb-2 block text-sm font-medium text-white/80">Overall Score</label>
+              <div className="mb-5 flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={fbScore}
+                  onChange={(e) => setFbScore(Number(e.target.value))}
+                  className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-current"
+                  style={{ color: fbScoreColor }}
+                />
+                <span className="w-12 text-right text-2xl font-bold tabular-nums" style={{ color: fbScoreColor }}>
+                  {fbScore}
+                </span>
+              </div>
+
+              {/* Written feedback */}
+              <label className="mb-2 block text-sm font-medium text-white/80">
+                Written Feedback <span className="text-white/40">(required)</span>
+              </label>
+              <textarea
+                value={fbFeedback}
+                onChange={(e) => setFbFeedback(e.target.value)}
+                rows={4}
+                placeholder="Strengths, areas to improve, overall impression…"
+                className="mb-5 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-accent/50 focus:outline-none"
+              />
+
+              {/* Q&A transcript */}
+              <label className="mb-2 block text-sm font-medium text-white/80">
+                Q&amp;A Transcript <span className="text-white/40">(optional — enables AI analysis)</span>
+              </label>
+              <textarea
+                value={fbTranscript}
+                onChange={(e) => setFbTranscript(e.target.value)}
+                rows={4}
+                placeholder={"Paste the questions you asked and the candidate's answers, e.g.\nQ: ...\nA: ..."}
+                className="mb-2 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-accent/50 focus:outline-none"
+              />
+              <div className="mb-5 flex items-start gap-2 text-xs text-white/40">
+                <Brain className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Add the Q&amp;A so the AI can score technical depth, communication, confidence, and
+                  problem-solving. The report shows the AI score, your score, and their average.
+                </span>
+              </div>
+
+              {fbError && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {fbError}
+                </div>
+              )}
+
+              <button
+                onClick={submitFeedback}
+                disabled={fbSubmitting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
+              >
+                {fbSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Submitting &amp; running AI analysis…
+                  </>
+                ) : (
+                  <>Submit Feedback &amp; Generate Report</>
+                )}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

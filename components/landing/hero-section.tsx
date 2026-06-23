@@ -1,137 +1,235 @@
 "use client"
 
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowRight, Play } from "lucide-react"
+import { ArrowRight, Play, Star, TrendingUp, Target } from "lucide-react"
 import { motion } from "framer-motion"
+
+const EQ_HEIGHTS = [40, 75, 55, 95, 50, 80, 35, 70, 45, 85, 60]
+const ROLES = [
+  "Software Engineer",
+  "Product Manager",
+  "Data Scientist",
+  "UX Designer",
+  "Consultant",
+  "Sales",
+  "Finance",
+  "Marketing",
+  "DevOps Engineer",
+  "Business Analyst",
+  "Project Manager",
+  "Cybersecurity",
+  "Cloud Architect",
+  "Mobile Developer",
+]
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-screen overflow-hidden pt-25">
-      {/* Background Gradient Effect */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-accent/20 blur-[120px] animate-pulse-glow" />
+    <section className="relative pb-24">
+      {/* Hero copy */}
+      <div className="relative mx-auto max-w-[1080px] px-7 pt-20 text-center">
+
+        <motion.h1
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.05 }}
+          className="mx-auto mb-5 max-w-[860px] font-display text-5xl font-bold leading-[1.02] tracking-[-0.035em] text-balance sm:text-6xl lg:text-[66px]"
+        >
+          Walk into any interview <span className="text-accent">already ready.</span>
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.12 }}
+          className="mx-auto mb-8 max-w-[600px] text-lg leading-relaxed text-muted-foreground text-pretty"
+        >
+          Intervexa runs realistic mock interviews, then breaks down your voice, body language, and
+          answers in real time — so nothing catches you off guard.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.18 }}
+          className="mb-9 flex flex-wrap justify-center gap-3.5"
+        >
+          <Link
+            href="/signup"
+            className="group inline-flex items-center gap-2.5 rounded-[13px] bg-accent px-6 py-3.5 text-[15px] font-semibold text-accent-foreground shadow-[0_12px_30px_-10px_var(--glow)] transition-transform hover:-translate-y-0.5"
+          >
+            Start free practice
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </Link>
+          <Link
+            href="/signup"
+            className="inline-flex items-center gap-2.5 rounded-[13px] border border-border bg-card px-5 py-3.5 text-[15px] font-medium text-foreground transition-colors hover:border-accent/40"
+          >
+            <Play className="h-4 w-4 fill-current" />
+            Watch demo
+          </Link>
+        </motion.div>
+
+        {/* Social proof */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.26 }}
+          className="flex flex-wrap items-center justify-center gap-3.5"
+        >
+          <div className="flex items-center">
+            {["AR", "JM", "SK", "+"].map((initials, i) => (
+              <span
+                key={initials}
+                style={{ marginLeft: i === 0 ? 0 : -9 }}
+                className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-accent/15 text-[11px] font-semibold text-accent"
+              >
+                {initials}
+              </span>
+            ))}
+          </div>
+          <div className="text-left">
+            <div className="flex gap-0.5 text-accent">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className="h-3.5 w-3.5 fill-current" />
+              ))}
+            </div>
+            <div className="mt-0.5 text-[12.5px] text-faint">
+              <span className="font-semibold text-foreground">4.8/5</span> · rated by 2,000+ candidates
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Left Content */}
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="space-y-8"
-          >
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-foreground text-balance text-center sm:text-left lg:text-6xl">
-              Master Your Interviews with{" "}
-              <span className="bg-gradient-to-r from-accent to-accent/60 bg-clip-text text-transparent">
-                AI-Powered
-              </span>{" "}
-              Practice
-            </h1>
+      {/* Product console */}
+      <div className="relative mx-auto mt-14 max-w-[1160px] px-7">
+        <div className="pointer-events-none absolute left-1/2 top-[-24px] h-[380px] w-[760px] max-w-full -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,var(--glow),transparent_70%)]" />
 
-            <p className="max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-              Practice with realistic AI-driven mock interviews, get instant feedback on your voice and body language,
-              and build the confidence to land your dream job.
-            </p>
-
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <Link href="/signup">
-                <Button
-                  size="lg"
-                  className="group w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto"
-                >
-                  Get Started Free
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-              <Button size="lg" variant="outline" className="group w-full sm:w-auto bg-transparent">
-                <Play className="mr-2 h-4 w-4" />
-                Watch Demo
-              </Button>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.3 }}
+          className="animate-float relative overflow-hidden rounded-[22px] border border-border bg-gradient-to-br from-card to-popover shadow-[0_24px_60px_-28px_rgba(0,0,0,0.7)]"
+        >
+          {/* Console title bar */}
+          <div className="flex items-center gap-3 border-b border-border px-[18px] py-3.5">
+            <div className="flex gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-destructive/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-success/80" />
             </div>
-          </motion.div>
+            <span className="font-mono text-xs text-faint">Intervexa · Live session</span>
+            <span className="ml-auto flex items-center gap-2 font-mono text-xs text-destructive">
+              <span className="h-1.5 w-1.5 rounded-full bg-destructive shadow-[0_0_8px_var(--destructive)]" />
+              REC 06:42
+            </span>
+          </div>
 
-          {/* Right Content - Demo Preview */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="relative"
-          >
-            <div className="animate-float relative rounded-2xl border border-border/50 bg-card/50 p-2 shadow-2xl backdrop-blur-sm">
-              <div className="rounded-xl bg-secondary/50 p-6">
-                {/* Mock Interview UI */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-destructive/80" />
-                    <div className="h-3 w-3 rounded-full bg-warning/80" />
-                    <div className="h-3 w-3 rounded-full bg-success/80" />
-                  </div>
-
-                  <div className="aspect-video rounded-lg bg-background/50 flex items-center justify-center">
-                    <div className="text-center space-y-3">
-                      <div className="mx-auto h-16 w-16 rounded-full bg-accent/20 flex items-center justify-center">
-                        <div className="h-12 w-12 rounded-full bg-accent/40 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-accent animate-pulse" />
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Recording in progress...</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-background/30 p-4 ">
-                    <p className=" text-sm font-medium text-foreground mb-2">Current Question:</p>
-                    <p className="text-sm text-muted-foreground">
-                      {`"Tell me about a challenging project you've worked on and how you overcame obstacles."`}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="flex-1 h-2 rounded-full bg-background/50">
-                      <div className="h-full w-3/5 rounded-full bg-accent" />
-                    </div>
-                    <span className="text-xs text-muted-foreground">3/5</span>
-                  </div>
-                </div>
+          {/* Console body */}
+          <div className="grid gap-4 p-[18px] md:grid-cols-[1.55fr_1fr]">
+            {/* Camera tile */}
+            <div className="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-[14px] border border-border bg-[radial-gradient(circle_at_50%_38%,color-mix(in_oklab,var(--accent)_12%,var(--popover)),var(--background))]">
+              <span className="absolute left-3 top-3 rounded-[9px] border border-border bg-background/55 px-2.5 py-1 text-xs backdrop-blur-sm">
+                You
+              </span>
+              <div className="relative flex h-26 w-26 items-center justify-center rounded-full border border-border bg-card">
+                <div className="animate-pulse-ring absolute -inset-2.5 rounded-full border-2 border-accent opacity-40" />
+                <span className="font-display text-3xl font-bold text-accent">AR</span>
+              </div>
+              <div className="absolute inset-x-3.5 bottom-3.5 flex h-[26px] items-end gap-[3px]">
+                {EQ_HEIGHTS.map((h, i) => (
+                  <span
+                    key={i}
+                    className="animate-eq-bar flex-1 rounded-[2px] bg-accent"
+                    style={{ height: `${h}%`, animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
               </div>
             </div>
 
-            {/* Floating Stats Cards */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.8 }}
-              className="absolute -left-4 top-1/4 rounded-xl border border-border/50 bg-card p-4 shadow-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-success/20 flex items-center justify-center">
-                  <span className="text-lg">📈</span>
+            {/* Side panel */}
+            <div className="flex min-w-0 flex-col gap-3">
+              <div className="rounded-[13px] border border-border bg-background/60 px-[15px] py-3.5">
+                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.07em] text-accent">
+                  Question 3 of 5
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">92%</p>
-                  <p className="text-xs text-muted-foreground">Confidence Score</p>
-                </div>
+                <p className="text-[13.5px] leading-relaxed">
+                  &ldquo;Tell me about a challenging project and how you overcame the obstacles.&rdquo;
+                </p>
               </div>
-            </motion.div>
+              <div className="flex flex-1 flex-col gap-3.5 rounded-[13px] border border-border bg-background/60 px-[15px] py-3.5">
+                {[
+                  { label: "Eye contact", value: "88%", w: 88 },
+                  { label: "Confidence", value: "81%", w: 81 },
+                  { label: "Pace", value: "Good", w: 72 },
+                ].map((m) => (
+                  <div key={m.label}>
+                    <div className="mb-1.5 flex justify-between text-xs">
+                      <span className="text-muted-foreground">{m.label}</span>
+                      <span className="font-mono text-accent">{m.value}</span>
+                    </div>
+                    <div className="h-[5px] overflow-hidden rounded-full bg-secondary">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${m.w}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 1 }}
-              className="absolute -right-4 top-2/5 rounded-xl border border-border/50 bg-card p-4 shadow-xl"
-            >
-              <div className="flex items-center gap-3 text-center ">
-                <div className="h-10 w-10 rounded-lg bg-accent/20 flex items-center justify-center">
-                  <span className="text-lg">🎯</span>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">4.8/5</p>
-                  <p className="text-xs text-muted-foreground">Avg Rating</p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+        {/* Floating stat cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="animate-float absolute left-1.5 top-[30%] hidden items-center gap-3 rounded-[15px] border border-border bg-card px-3.5 py-3 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.7)] sm:flex"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent/10 text-accent">
+            <TrendingUp className="h-[17px] w-[17px]" />
+          </div>
+          <div>
+            <div className="font-display text-[19px] font-bold leading-none">+14%</div>
+            <div className="text-[11px] text-faint">Confidence growth</div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.75 }}
+          className="animate-float absolute bottom-[18%] right-1.5 hidden items-center gap-3 rounded-[15px] border border-border bg-card px-3.5 py-3 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.7)] sm:flex"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent/10 text-accent">
+            <Target className="h-[17px] w-[17px]" />
+          </div>
+          <div>
+            <div className="font-display text-[19px] font-bold leading-none">92%</div>
+            <div className="text-[11px] text-faint">Session score</div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Roles strip — infinite horizontal marquee */}
+      <div className="mt-16 text-center">
+        <div className="mb-5 font-mono text-[11px] uppercase tracking-[0.1em] text-faint">
+          Practice for 40+ roles
+        </div>
+        <div className="group relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+          {/* Track: two identical copies so the -50% shift loops seamlessly */}
+          <div className="animate-marquee flex w-max group-hover:[animation-play-state:paused]">
+            {[0, 1].map((copy) => (
+              <ul key={copy} className="flex shrink-0 gap-2.5 pr-2.5" aria-hidden={copy === 1}>
+                {ROLES.map((role) => (
+                  <li
+                    key={role}
+                    className="whitespace-nowrap rounded-full border border-border bg-card px-4 py-2 text-[13.5px] text-muted-foreground"
+                  >
+                    {role}
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
         </div>
       </div>
     </section>

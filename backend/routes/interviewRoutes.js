@@ -47,6 +47,17 @@ const { checkSessionLimit, checkDifficultyAccess } = require('../middleware/plan
 
 const router = express.Router();
 
+// Number of questions generated per session, keyed by difficulty.
+// Easier sessions get more (shorter) questions; harder sessions get fewer.
+const QUESTIONS_BY_DIFFICULTY = { easy: 15, medium: 12, hard: 8 };
+
+/**
+ * Resolve how many questions a session should contain based on its difficulty.
+ * Falls back to the 'medium' count for any unknown/unset difficulty.
+ */
+const getQuestionCount = (difficulty) =>
+  QUESTIONS_BY_DIFFICULTY[(difficulty || 'medium').toLowerCase()] ?? QUESTIONS_BY_DIFFICULTY.medium;
+
 /**
  * @route   POST /api/interviews/start
  * @desc    Start a new interview session
@@ -70,9 +81,8 @@ router.post('/start', authenticate, ...startInterviewValidation, checkSessionLim
 
   let questionsMeta = { count: 0, usedAI: false };
   const { populateInterviewQuestions } = require('../services/interviewQuestionService');
-  const sessionTypeLower = (session_type || 'general').toLowerCase();
-  // mixed interview uses 7 total questions; technical/behavioral use 5 total questions.
-  const targetCount = sessionTypeLower === 'mixed' ? 7 : 5;
+  // Question count is driven by difficulty: easy 15, medium 12, hard 8.
+  const targetCount = getQuestionCount(session.difficulty);
   questionsMeta = await populateInterviewQuestions(session, targetCount);
 
   logger.info(`Interview session started: ${session._id} for user: ${req.user.id}`);
@@ -289,8 +299,7 @@ router.get('/:sessionId/questions', authenticate, asyncHandler(async (req, res) 
   // Safety: if nothing exists yet (AI/bank failure), populate lazily.
   if (!interviewQuestions || interviewQuestions.length === 0) {
     const { populateInterviewQuestions } = require('../services/interviewQuestionService');
-    const sessionType = (session.session_type || 'general').toLowerCase();
-    const targetCount = sessionType === 'mixed' ? 7 : 5;
+    const targetCount = getQuestionCount(session.difficulty);
 
     // Gemini-only: if this fails, surface the failure to the frontend.
     await populateInterviewQuestions(session, targetCount);

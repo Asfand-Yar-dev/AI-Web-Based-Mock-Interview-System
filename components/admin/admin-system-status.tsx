@@ -31,9 +31,9 @@ const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 }
 
 const SERVICE_COLORS: Record<string, { icon: string; glow: string; ring: string }> = {
-  "Backend API": { icon: "text-blue-500",    glow: "bg-blue-500/10",    ring: "border-blue-500/20"    },
-  "MongoDB":     { icon: "text-emerald-500", glow: "bg-emerald-500/10", ring: "border-emerald-500/20" },
-  "AI Gateway":  { icon: "text-violet-500",  glow: "bg-violet-500/10",  ring: "border-violet-500/20"  },
+  "Backend API": { icon: "text-info",    glow: "bg-info/10",    ring: "border-info/20"    },
+  "MongoDB":     { icon: "text-success", glow: "bg-success/10", ring: "border-success/20" },
+  "AI Gateway":  { icon: "text-accent",  glow: "bg-accent/10",  ring: "border-accent/20"  },
 }
 
 // Labels shown for metrics keys
@@ -146,7 +146,7 @@ export function AdminSystemStatus({ services: initialServices }: AdminSystemStat
   const okCount   = services.filter(s => STATUS_META[s.status]?.ok !== false).length
 
   return (
-    <section className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+    <section className="rounded-[17px] border border-border bg-card overflow-hidden">
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 p-5 pb-4">

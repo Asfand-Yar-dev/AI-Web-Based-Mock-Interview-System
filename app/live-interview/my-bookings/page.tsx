@@ -48,20 +48,20 @@ function AcceptedBanner({ bookings }: { bookings: LiveBooking[] }) {
         {accepted.map((b) => (
           <div
             key={b._id}
-            className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4"
+            className="flex flex-wrap items-center gap-3 rounded-2xl border border-info/30 bg-info/10 px-5 py-4"
           >
-            <Bell className="h-5 w-5 text-blue-400 shrink-0 animate-bounce" />
+            <Bell className="h-5 w-5 text-info shrink-0 animate-bounce" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-blue-300 text-sm">
+              <p className="font-semibold text-info text-sm">
                 Your interview booking has been accepted!
               </p>
-              <p className="text-xs text-blue-400/80 mt-0.5">
+              <p className="text-xs text-info/80 mt-0.5">
                 <strong>{b.role}</strong> — Please proceed with payment to confirm your session.
               </p>
             </div>
             <Link
               href={`/live-interview/checkout/${b._id}`}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-400 transition-colors shrink-0"
+              className="inline-flex items-center gap-2 rounded-xl bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info transition-colors shrink-0"
             >
               <CreditCard className="h-4 w-4" />
               Proceed to Payment
@@ -100,7 +100,7 @@ function AddToCalendarButton({ booking }: { booking: LiveBooking }) {
   return (
     <button
       onClick={() => window.open(buildGoogleCalendarUrl(eventParams), "_blank", "noopener")}
-      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/60 hover:-translate-y-0.5 transition-all duration-200"
+      className="inline-flex items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success hover:bg-success/20 hover:border-success/60 hover:-translate-y-0.5 transition-all duration-200"
       title="Opens Google Calendar with the event pre-filled — just click Save"
     >
       <CalendarPlus className="h-4 w-4" />
@@ -194,7 +194,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
       animate={{ opacity: 1, y: 0 }}
       className={`rounded-2xl border p-5 transition-colors ${
         isOverdue
-          ? "border-rose-500/50 hover:border-rose-500/70"
+          ? "border-destructive/50 hover:border-destructive/70"
           : "border-border/50 bg-card hover:border-border"
       }`}
       style={isOverdue ? { backgroundColor: "rgba(244,63,94,0.08)" } : undefined}
@@ -257,7 +257,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
 
       {/* Rejection note */}
       {isRejected && (booking as any).interviewerNote && (
-        <div className="mt-3 rounded-xl bg-red-500/5 border border-red-500/15 px-3 py-2 text-xs text-red-400">
+        <div className="mt-3 rounded-xl bg-destructive/5 border border-destructive/15 px-3 py-2 text-xs text-destructive">
           <strong>Reason:</strong> {(booking as any).interviewerNote}
         </div>
       )}
@@ -265,7 +265,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
       {/* Actions */}
       <div className="mt-4 flex flex-wrap gap-2">
         {isPending && (
-          <span className="inline-flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm text-amber-400">
+          <span className="inline-flex items-center gap-2 rounded-xl bg-warning/10 border border-warning/20 px-4 py-2 text-sm text-warning">
             <Clock className="h-4 w-4" />
             Waiting for interviewer approval…
           </span>
@@ -273,7 +273,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
         {showPayment && (
           <Link
             href={`/live-interview/checkout/${booking._id}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-500/80 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl bg-info/80 px-4 py-2 text-sm font-medium text-white hover:bg-info transition-colors"
           >
             <CreditCard className="h-4 w-4" />
             {booking.status === BOOKING_STATUS.ACCEPTED ? "Proceed to Payment" : "Complete Payment"}
@@ -302,7 +302,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
         )}
         {isRejected && (
           <div className="flex flex-wrap items-center gap-2 w-full">
-            <span className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-400">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
               <XCircle className="h-4 w-4" />
               Request Declined
             </span>
@@ -316,7 +316,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
           </div>
         )}
         {isNoShow && (
-          <span className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-400">
+          <span className="inline-flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
             <AlertCircle className="h-4 w-4" />
             Refund Issued
           </span>
@@ -456,35 +456,35 @@ export default function MyBookingsPage() {
       {bookings && bookings.length > 0 && (
         <div className="space-y-8">
           {pendingApproval.length > 0 && (
-            <SectionGroup title="Pending Approval" count={pendingApproval.length} dotColor="bg-amber-400">
+            <SectionGroup title="Pending Approval" count={pendingApproval.length} dotColor="bg-warning">
               <div className="space-y-4">
                 {pendingApproval.map((b) => <BookingCard key={b._id} booking={b} onRefresh={load} />)}
               </div>
             </SectionGroup>
           )}
           {accepted.length > 0 && (
-            <SectionGroup title="Accepted — Payment Required" count={accepted.length} dotColor="bg-blue-400">
+            <SectionGroup title="Accepted — Payment Required" count={accepted.length} dotColor="bg-info">
               <div className="space-y-4">
                 {accepted.map((b) => <BookingCard key={b._id} booking={b} onRefresh={load} />)}
               </div>
             </SectionGroup>
           )}
           {scheduled.length > 0 && (
-            <SectionGroup title="Scheduled / Active" count={scheduled.length} dotColor="bg-indigo-400">
+            <SectionGroup title="Scheduled / Active" count={scheduled.length} dotColor="bg-info">
               <div className="space-y-4">
                 {scheduled.map((b) => <BookingCard key={b._id} booking={b} onRefresh={load} />)}
               </div>
             </SectionGroup>
           )}
           {completed.length > 0 && (
-            <SectionGroup title="Completed" count={completed.length} dotColor="bg-emerald-400">
+            <SectionGroup title="Completed" count={completed.length} dotColor="bg-success">
               <div className="space-y-4">
                 {completed.map((b) => <BookingCard key={b._id} booking={b} onRefresh={load} />)}
               </div>
             </SectionGroup>
           )}
           {rejected.length > 0 && (
-            <SectionGroup title="Declined / Cancelled" count={rejected.length} dotColor="bg-red-400">
+            <SectionGroup title="Declined / Cancelled" count={rejected.length} dotColor="bg-destructive">
               <div className="space-y-4">
                 {rejected.map((b) => <BookingCard key={b._id} booking={b} onRefresh={load} />)}
               </div>

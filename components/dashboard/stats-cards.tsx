@@ -2,50 +2,52 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { TrendingUp, Award, Clock, Target, ArrowUpRight } from "lucide-react"
+import { TrendingUp, Flame, Clock, Target } from "lucide-react"
 
 interface StatsCardsProps {
   totalInterviews: number
   averageScore: number
   confidenceImprovement: number
+  currentStreak: number
 }
 
-export function StatsCards({ totalInterviews, averageScore, confidenceImprovement }: StatsCardsProps) {
+export function StatsCards({ totalInterviews, averageScore, confidenceImprovement, currentStreak }: StatsCardsProps) {
   const stats = [
     {
-      label: "Total Interviews",
+      label: "Total interviews",
       value: totalInterviews.toString(),
       icon: Clock,
       description: "Practice sessions completed",
-      color: "text-chart-1",
-      bgColor: "bg-chart-1/10",
+      tint: "bg-accent/10 text-accent",
+      valueClass: "text-card-foreground",
       href: "/dashboard/analytics#breakdown",
     },
     {
-      label: "Average Score",
+      label: "Average score",
       value: `${averageScore}%`,
       icon: Target,
       description: "Across all sessions",
-      color: "text-chart-2",
-      bgColor: "bg-chart-2/10",
+      tint: "bg-accent/10 text-accent",
+      valueClass: "text-card-foreground",
       href: "/dashboard/analytics#performance",
     },
     {
-      label: "Confidence Growth",
+      label: "Confidence growth",
       value: `+${confidenceImprovement}%`,
       icon: TrendingUp,
       description: "Since last month",
-      color: "text-success",
-      bgColor: "bg-success/10",
+      tint: "bg-success/15 text-success",
+      valueClass: "text-success",
       href: "/dashboard/analytics#trend",
     },
     {
-      label: "Current Streak",
-      value: "5 days",
-      icon: Award,
-      description: "Keep it up!",
-      color: "text-chart-3",
-      bgColor: "bg-chart-3/10",
+      label: "Current streak",
+      value: currentStreak.toString(),
+      unit: currentStreak === 1 ? "day" : "days",
+      icon: Flame,
+      description: currentStreak > 0 ? "Keep it up!" : "Practice today to start a streak",
+      tint: "bg-warning/15 text-warning",
+      valueClass: "text-card-foreground",
       href: "/dashboard/analytics#streak",
     },
   ]
@@ -55,34 +57,28 @@ export function StatsCards({ totalInterviews, averageScore, confidenceImprovemen
       {stats.map((stat, index) => (
         <motion.div
           key={stat.label}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: index * 0.1 }}
+          transition={{ duration: 0.4, delay: index * 0.08 }}
         >
           <Link
             href={stat.href}
-            className="group relative block h-full rounded-2xl border border-border/50 bg-card p-6 transition-all hover:border-accent/50 hover:shadow-md hover:shadow-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block h-full rounded-[17px] border border-border bg-card p-5 transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div className="flex items-start justify-between">
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="text-3xl font-bold text-card-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.description}</p>
-              </div>
-              <div className={cn("rounded-xl p-3", stat.bgColor)}>
-                <stat.icon className={cn("h-5 w-5", stat.color)} />
+              <span className="text-[13px] text-muted-foreground">{stat.label}</span>
+              <div className={`flex h-[34px] w-[34px] items-center justify-center rounded-[10px] ${stat.tint}`}>
+                <stat.icon className="h-4 w-4" />
               </div>
             </div>
-            <ArrowUpRight
-              className="absolute right-4 bottom-4 h-4 w-4 text-muted-foreground/40 transition-all duration-300 group-hover:text-accent group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-            />
+            <div className={`mt-3.5 mb-1 font-display text-[32px] font-bold leading-none ${stat.valueClass}`}>
+              {stat.value}
+              {stat.unit && <span className="ml-1.5 text-lg font-semibold text-faint">{stat.unit}</span>}
+            </div>
+            <div className="text-xs text-faint">{stat.description}</div>
           </Link>
         </motion.div>
       ))}
     </div>
   )
-}
-
-function cn(...classes: string[]) {
-  return classes.filter(Boolean).join(" ")
 }

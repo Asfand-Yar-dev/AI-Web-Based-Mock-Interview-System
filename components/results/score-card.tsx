@@ -19,7 +19,7 @@ export function ScoreCard({ label, score, color, delay = 0, zeroReason }: ScoreC
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, delay }}
-      className="rounded-2xl border border-border/50 bg-card p-6 flex flex-col items-center"
+      className="rounded-[17px] border border-border bg-card p-6 flex flex-col items-center transition-colors hover:border-accent/40"
     >
       <div className="relative h-24 w-24 mb-4">
         <svg className="h-24 w-24 -rotate-90" viewBox="0 0 100 100">
@@ -40,7 +40,7 @@ export function ScoreCard({ label, score, color, delay = 0, zeroReason }: ScoreC
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <motion.span
-            className="text-2xl font-bold text-card-foreground"
+            className="font-display text-2xl font-bold text-card-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: delay + 0.5 }}

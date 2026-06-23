@@ -64,21 +64,19 @@ export function AdminStatsCards({
       {cards.map((stat, index) => (
         <motion.div
           key={stat.label}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: index * 0.07 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
+          className="rounded-[16px] border border-border bg-card p-5 transition-colors hover:border-accent/40"
         >
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className="mt-2 text-3xl font-bold text-card-foreground">{stat.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground truncate">{stat.description}</p>
-            </div>
-            <div className="rounded-xl p-3 bg-accent/10 shrink-0">
-              <stat.icon className="h-5 w-5 text-accent" />
+            <span className="text-[13px] text-muted-foreground">{stat.label}</span>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-accent/10 text-accent">
+              <stat.icon className="h-[15px] w-[15px]" />
             </div>
           </div>
+          <div className="mt-3 font-display text-[30px] font-bold leading-none text-card-foreground">{stat.value}</div>
+          <div className="mt-2 text-xs text-faint truncate">{stat.description}</div>
         </motion.div>
       ))}
     </div>

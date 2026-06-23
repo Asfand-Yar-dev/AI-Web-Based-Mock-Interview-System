@@ -61,30 +61,35 @@ async function populateInterviewQuestions(session, targetCount = 5) {
 
   const difficulty = normalizeDifficulty(session);
 
-  // Gate assumptions:
-  // - gateway always returns 5 main questions (res.questions) for generate_questions(...)
-  // - gateway returns soft questions only if include_soft_skills is enabled
-  // - soft questions count is controlled by num_soft_skills
-  let includeSoftSkills = false;
-  let numSoftSkills = 0;
+  // Decide how the requested targetCount splits between technical (main) and
+  // behavioral (soft) questions based on the session type. The gateway now lets
+  // us control both the main count (num_questions) and the soft count (num_soft_skills).
+  let mainCount = 0;
+  let softCount = 0;
 
   if (sessionType === 'technical') {
-    includeSoftSkills = false;
-    numSoftSkills = 0;
+    mainCount = targetCount;
+    softCount = 0;
   } else if (sessionType === 'behavioral') {
-    includeSoftSkills = true;
-    numSoftSkills = targetCount;
+    mainCount = 0;
+    softCount = targetCount;
   } else {
-    // mixed: take all 5 main + (targetCount - 5) soft
-    // If targetCount <= 5, we keep mixed but return only main questions.
-    includeSoftSkills = targetCount > 5;
-    numSoftSkills = Math.max(0, targetCount - 5);
+    // mixed: up to 5 technical questions, remainder behavioral.
+    mainCount = Math.min(5, targetCount);
+    softCount = Math.max(0, targetCount - mainCount);
   }
+
+  const includeSoftSkills = softCount > 0;
+  const numSoftSkills = softCount;
+  // The gateway always runs the main generator; request at least 1 to avoid a
+  // degenerate prompt even when this session type ignores main questions.
+  const numQuestions = Math.max(1, mainCount);
 
   const aiServiceClient = require('./aiServiceClient');
   const res = await aiServiceClient.generateQuestions(jobTitle, techStack, difficulty, {
     includeSoftSkills,
     numSoftSkills,
+    numQuestions,
   });
 
   if (!res || res.status !== 'success') {
@@ -100,25 +105,14 @@ async function populateInterviewQuestions(session, targetCount = 5) {
   const mainQuestions = mainQuestionsRaw.map(cleanQuestion).filter((x) => x.length >= 10);
   const softQuestions = softQuestionsRaw.map(cleanQuestion).filter((x) => x.length >= 10);
 
-  let selectedQuestions = [];
-  let categories = [];
+  const mainSel = mainQuestions.slice(0, mainCount);
+  const softSel = softQuestions.slice(0, softCount);
 
-  if (sessionType === 'technical') {
-    selectedQuestions = mainQuestions.slice(0, targetCount);
-    categories = selectedQuestions.map(() => 'technical');
-  } else if (sessionType === 'behavioral') {
-    selectedQuestions = softQuestions.slice(0, targetCount);
-    categories = selectedQuestions.map(() => 'behavioral');
-  } else {
-    const mainSelCount = Math.min(5, targetCount);
-    const softSelCount = Math.max(0, targetCount - mainSelCount);
-
-    const mainSel = mainQuestions.slice(0, mainSelCount);
-    const softSel = softQuestions.slice(0, softSelCount);
-
-    selectedQuestions = [...mainSel, ...softSel];
-    categories = [...mainSel.map(() => 'technical'), ...softSel.map(() => 'behavioral')];
-  }
+  const selectedQuestions = [...mainSel, ...softSel];
+  const categories = [
+    ...mainSel.map(() => 'technical'),
+    ...softSel.map(() => 'behavioral'),
+  ];
 
   if (selectedQuestions.length !== targetCount) {
     // Gemini-only requirement: do not fill remaining slots from DB or heuristics.

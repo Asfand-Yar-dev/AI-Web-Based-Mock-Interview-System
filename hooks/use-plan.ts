@@ -9,7 +9,7 @@
 
 import { useAuth } from '@/contexts/auth-context';
 
-const FREE_MONTHLY_SESSIONS = 3; // keep in sync with backend PLAN_LIMITS
+const FREE_MONTHLY_SESSIONS = 10; // keep in sync with backend PLAN_LIMITS
 
 export interface PlanInfo {
   plan: 'free' | 'pro';

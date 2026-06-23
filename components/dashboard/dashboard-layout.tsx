@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
 import { liveInterviewApi } from "@/lib/liveInterviewApi"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -57,11 +56,11 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link href={homeHref} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
+        <Link href={homeHref} className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
             <Sparkles className="h-4 w-4 text-accent-foreground" />
           </div>
-          <span className="font-semibold text-foreground">Intervexa</span>
+          <span className="font-display font-semibold text-foreground">Intervexa</span>
         </Link>
       </header>
 
@@ -151,11 +150,11 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
-        <Link href={roleHome(userRole)} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
+        <Link href={roleHome(userRole)} className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
             <Sparkles className="h-4 w-4 text-accent-foreground" />
           </div>
-          <span className="font-semibold text-sidebar-foreground">Intervexa</span>
+          <span className="font-display font-semibold text-sidebar-foreground">Intervexa</span>
         </Link>
         {onClose && (
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-sidebar-accent lg:hidden">
@@ -176,7 +175,7 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
               className={cn(
                 "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  ? "bg-accent/10 text-accent"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
               )}
             >
@@ -205,7 +204,7 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
                   <span>Interviewer Panel</span>
                 </div>
                 {pendingCount > 0 && (
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
                     {pendingCount}
                   </span>
                 )}
@@ -249,7 +248,6 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
             <p className="text-sm font-medium text-sidebar-foreground truncate">{displayName}</p>
             <p className="text-xs text-sidebar-foreground/60 truncate">{userEmail}</p>
           </div>
-          <ThemeToggle />
         </div>
         <Button
           variant="ghost"

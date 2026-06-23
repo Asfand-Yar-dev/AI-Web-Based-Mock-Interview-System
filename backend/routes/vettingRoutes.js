@@ -64,9 +64,15 @@ router.post('/start', authenticate, asyncHandler(async (req, res) => {
  * Accept user's chat input, push to history, and reply with the next question OR grade the final results.
  */
 router.post('/message', authenticate, asyncHandler(async (req, res) => {
-  const { message } = req.body;
-  if (!message || !message.trim()) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Message is required');
+  const { message, wasPasted, skipped } = req.body;
+  const isSkip = Boolean(skipped);
+
+  // A real answer is required unless the candidate explicitly skips.
+  if (!isSkip && (!message || message.trim().length < 15)) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Please write a complete answer (at least 15 characters), or use Skip if you cannot answer.'
+    );
   }
 
   const profile = await Interviewer.findOne({ userId: req.user.id });
@@ -76,10 +82,12 @@ router.post('/message', authenticate, asyncHandler(async (req, res) => {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No active vetting interview in progress');
   }
 
-  // Push user answer
+  // Push user answer. Flag pasted answers (copy-paste from an AI assistant) and skips.
   profile.vettingConversation.push({
     role: 'user',
-    content: message.trim(),
+    content: isSkip ? '[Skipped]' : message.trim(),
+    pasted: !isSkip && Boolean(wasPasted),
+    skipped: isSkip,
     timestamp: new Date()
   });
 
@@ -101,7 +109,11 @@ router.post('/message', authenticate, asyncHandler(async (req, res) => {
         vettingStatus: updatedProfile.vettingStatus,
         vettingScore: updatedProfile.vettingScore,
         isVerified: updatedProfile.isVerified,
-        evaluationFeedback: evaluation.feedback,
+        summary: evaluation.summary,
+        mistakes: evaluation.mistakes,
+        strengths: evaluation.strengths,
+        aiGeneratedSuspected: evaluation.aiGeneratedSuspected,
+        audit: evaluation.audit,
         vettingConversation: updatedProfile.vettingConversation,
       }
     });

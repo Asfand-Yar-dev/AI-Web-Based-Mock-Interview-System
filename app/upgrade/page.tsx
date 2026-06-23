@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import {
@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 
 const FREE_FEATURES = [
-  { icon: Sparkles,  text: "3 AI interview sessions per month" },
+  { icon: Sparkles,  text: "10 AI interview sessions per month" },
   { icon: BarChart3, text: "Easy & Medium difficulty" },
   { icon: Check,     text: "Basic score breakdown" },
   { icon: Check,     text: "Question bank access" },
@@ -43,6 +43,14 @@ function safeNext(value: string | null): string {
 }
 
 export default function UpgradePage() {
+  return (
+    <Suspense fallback={null}>
+      <UpgradePageInner />
+    </Suspense>
+  )
+}
+
+function UpgradePageInner() {
   const { isPro, isFree } = usePlan()
   const { upgradePlan, isAuthenticated } = useAuth()
   const router = useRouter()
@@ -99,7 +107,7 @@ export default function UpgradePage() {
           transition={{ duration: 0.5 }}
           className="text-center mb-14"
         >
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 px-3 py-1 text-xs font-semibold text-yellow-400 mb-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 border border-warning/30 px-3 py-1 text-xs font-semibold text-warning mb-4">
             <Zap className="h-3.5 w-3.5" /> Upgrade your practice
           </span>
           <h1 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight">
@@ -129,7 +137,7 @@ export default function UpgradePage() {
                 <p className="text-sm text-muted-foreground mt-0.5">Great to get started</p>
               </div>
               <div className="text-right">
-                <span className="text-3xl font-bold text-foreground">$0</span>
+                <span className="text-3xl font-bold text-foreground">Rs 0</span>
                 <span className="text-sm text-muted-foreground">/mo</span>
               </div>
             </div>
@@ -180,7 +188,7 @@ export default function UpgradePage() {
                 <p className="text-sm text-muted-foreground mt-0.5">For serious candidates</p>
               </div>
               <div className="text-right">
-                <span className="text-3xl font-bold text-foreground">$9</span>
+                <span className="text-3xl font-bold text-foreground">Rs 2,500</span>
                 <span className="text-sm text-muted-foreground">/mo</span>
               </div>
             </div>
@@ -196,7 +204,7 @@ export default function UpgradePage() {
 
             {/* Success state */}
             {success ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-3 text-sm font-semibold text-emerald-400">
+              <div className="flex items-center justify-center gap-2 rounded-xl bg-success/15 border border-success/30 py-3 text-sm font-semibold text-success">
                 <Check className="h-4 w-4" />
                 Upgraded! Redirecting…
               </div>

@@ -28,18 +28,18 @@ import { PremiumLayout } from "@/components/live-interview/premium-layout";
 // ── Status banner ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; title: string; desc: string; color: string; bg: string }> = {
-  pending_approval:   { icon: Loader2,       title: "Awaiting Acceptance",    desc: "Your booking request is waiting for the interviewer to accept.",       color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20"  },
-  accepted:           { icon: Loader2,       title: "Accepted — Payment Needed", desc: "Your booking was accepted. Please complete payment to confirm.",     color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20"    },
-  payment_pending:    { icon: Loader2,       title: "Payment Pending",          desc: "Awaiting payment confirmation from the payment provider.",           color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20"  },
-  payment_completed:  { icon: Loader2,       title: "Payment Confirmed",        desc: "Payment received. Your meeting room is being set up.",              color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20"},
-  meeting_scheduled:  { icon: Loader2,       title: "Interview Scheduled",      desc: "Your interview is confirmed. Join the meeting at the scheduled time.", color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20"},
-  meeting_started:    { icon: Loader2,       title: "Interview In Progress",    desc: "The interview session is currently active.",                         color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20"    },
-  meeting_completed:  { icon: Loader2,       title: "Recording Received",       desc: "Your session is queued for AI analysis (~10 minutes).",              color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20"    },
-  evaluating_ai:      { icon: Brain,         title: "AI Analysis In Progress",  desc: "Evaluating Q&A transcript and scoring candidate performance.",       color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20"},
-  results_ready:      { icon: CheckCircle2,  title: "Your Report Is Ready",     desc: "360° AI analysis + human interviewer feedback below.",               color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20"},
-  failed_no_show:     { icon: AlertCircle,   title: "Interviewer Did Not Show", desc: "We're sorry. An auto-refund has been issued to your account.",       color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20"      },
-  refunded:           { icon: AlertCircle,   title: "Booking Refunded",         desc: "A refund has been processed to your original payment method.",       color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20"      },
-  completed:          { icon: Loader2,       title: "Recording Received",       desc: "Your session is queued for AI analysis (~10 minutes).",              color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20"    },
+  pending_approval:   { icon: Loader2,       title: "Awaiting Acceptance",    desc: "Your booking request is waiting for the interviewer to accept.",       color: "text-warning",   bg: "bg-warning/10 border-warning/20"  },
+  accepted:           { icon: Loader2,       title: "Accepted — Payment Needed", desc: "Your booking was accepted. Please complete payment to confirm.",     color: "text-info",    bg: "bg-info/10 border-info/20"    },
+  payment_pending:    { icon: Loader2,       title: "Payment Pending",          desc: "Awaiting payment confirmation from the payment provider.",           color: "text-warning",   bg: "bg-warning/10 border-warning/20"  },
+  payment_completed:  { icon: Loader2,       title: "Payment Confirmed",        desc: "Payment received. Your meeting room is being set up.",              color: "text-info",  bg: "bg-info/10 border-info/20"},
+  meeting_scheduled:  { icon: Loader2,       title: "Interview Scheduled",      desc: "Your interview is confirmed. Join the meeting at the scheduled time.", color: "text-info",  bg: "bg-info/10 border-info/20"},
+  meeting_started:    { icon: Loader2,       title: "Interview In Progress",    desc: "The interview session is currently active.",                         color: "text-accent",    bg: "bg-accent/10 border-accent/20"    },
+  meeting_completed:  { icon: Loader2,       title: "Recording Received",       desc: "Your session is queued for AI analysis (~10 minutes).",              color: "text-info",    bg: "bg-info/10 border-info/20"    },
+  evaluating_ai:      { icon: Brain,         title: "AI Analysis In Progress",  desc: "Evaluating Q&A transcript and scoring candidate performance.",       color: "text-info",  bg: "bg-info/10 border-info/20"},
+  results_ready:      { icon: CheckCircle2,  title: "Your Report Is Ready",     desc: "360° AI analysis + human interviewer feedback below.",               color: "text-success", bg: "bg-success/10 border-success/20"},
+  failed_no_show:     { icon: AlertCircle,   title: "Interviewer Did Not Show", desc: "We're sorry. An auto-refund has been issued to your account.",       color: "text-destructive",     bg: "bg-destructive/10 border-destructive/20"      },
+  refunded:           { icon: AlertCircle,   title: "Booking Refunded",         desc: "A refund has been processed to your original payment method.",       color: "text-destructive",     bg: "bg-destructive/10 border-destructive/20"      },
+  completed:          { icon: Loader2,       title: "Recording Received",       desc: "Your session is queued for AI analysis (~10 minutes).",              color: "text-info",    bg: "bg-info/10 border-info/20"    },
 };
 
 function StatusBanner({ status }: { status: string }) {
@@ -144,15 +144,15 @@ function DimCard({ label, score, icon: Icon, color, bg }: {
 function StrengthsList({ strengths }: { strengths: string[] }) {
   if (!strengths?.length) return null;
   return (
-    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+    <div className="rounded-xl border border-success/20 bg-success/5 p-5">
       <div className="mb-3 flex items-center gap-2">
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-        <h3 className="text-sm font-semibold text-emerald-400">Key Strengths</h3>
+        <CheckCircle2 className="h-4 w-4 text-success" />
+        <h3 className="text-sm font-semibold text-success">Key Strengths</h3>
       </div>
       <ul className="space-y-2">
         {strengths.map((str, i) => (
           <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-success shrink-0" />
             <span>{str}</span>
           </li>
         ))}
@@ -164,15 +164,15 @@ function StrengthsList({ strengths }: { strengths: string[] }) {
 function ImprovementsList({ improvements }: { improvements: string[] }) {
   if (!improvements?.length) return null;
   return (
-    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+    <div className="rounded-xl border border-warning/20 bg-warning/5 p-5">
       <div className="mb-3 flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-amber-400" />
-        <h3 className="text-sm font-semibold text-amber-400">Areas for Improvement</h3>
+        <TrendingUp className="h-4 w-4 text-warning" />
+        <h3 className="text-sm font-semibold text-warning">Areas for Improvement</h3>
       </div>
       <ul className="space-y-2">
         {improvements.map((imp, i) => (
           <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-warning shrink-0" />
             <span>{imp}</span>
           </li>
         ))}
@@ -289,22 +289,6 @@ export default function LiveResultsPage() {
         {/* Status banner */}
         <StatusBanner status={booking.status} />
 
-        {/* Score heroes */}
-        {finalCombinedScore !== null && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-border/50 bg-card p-6"
-          >
-            <h2 className="mb-5 text-base font-semibold text-card-foreground">Overall Performance</h2>
-            <div className="flex flex-wrap items-center justify-center gap-8">
-              <ScoreCircle score={finalCombinedScore} label={hasAiReport ? "Combined Score" : "Final Score"} size="lg" />
-              {hasAiReport && aiScore !== null && <ScoreCircle score={aiScore} label="AI Score" size="sm" />}
-              {hasAiReport && humanScore !== null && <ScoreCircle score={humanScore} label="Human Score" size="sm" />}
-            </div>
-          </motion.div>
-        )}
-
         {/* AI Analysis section */}
         {hasAiReport && (
           <motion.div
@@ -332,8 +316,8 @@ export default function LiveResultsPage() {
                   label="Communication"
                   score={commScore}
                   icon={MessageSquare}
-                  color="text-blue-400"
-                  bg="bg-blue-500/5"
+                  color="text-info"
+                  bg="bg-info/5"
                 />
               )}
               {techScore !== null && (
@@ -341,8 +325,8 @@ export default function LiveResultsPage() {
                   label="Technical Depth"
                   score={techScore}
                   icon={Brain}
-                  color="text-indigo-400"
-                  bg="bg-indigo-500/5"
+                  color="text-info"
+                  bg="bg-info/5"
                 />
               )}
               {confScore !== null && (
@@ -350,8 +334,8 @@ export default function LiveResultsPage() {
                   label="Confidence"
                   score={confScore}
                   icon={Sparkles}
-                  color="text-emerald-400"
-                  bg="bg-emerald-500/5"
+                  color="text-success"
+                  bg="bg-success/5"
                 />
               )}
               {probScore !== null && (
@@ -359,8 +343,8 @@ export default function LiveResultsPage() {
                   label="Problem Solving"
                   score={probScore}
                   icon={TrendingUp}
-                  color="text-amber-400"
-                  bg="bg-amber-500/5"
+                  color="text-warning"
+                  bg="bg-warning/5"
                 />
               )}
             </div>
@@ -426,6 +410,34 @@ export default function LiveResultsPage() {
                 {booking.humanFeedback}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* Final score — average of AI + human, shown below both sections */}
+        {finalCombinedScore !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rounded-2xl border border-accent/30 bg-card p-6"
+          >
+            <div className="mb-5 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-accent" />
+              <h2 className="text-base font-semibold text-card-foreground">
+                {hasAiReport && humanScore !== null ? "Final Score — Average of AI & Interviewer" : "Final Score"}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-8">
+              {hasAiReport && aiScore !== null && <ScoreCircle score={aiScore} label="AI Score" size="sm" />}
+              <ScoreCircle score={finalCombinedScore} label={hasAiReport && humanScore !== null ? "Average Score" : "Final Score"} size="lg" />
+              {humanScore !== null && <ScoreCircle score={humanScore} label="Human Score" size="sm" />}
+            </div>
+            {hasAiReport && humanScore !== null && (
+              <p className="mt-5 text-center text-xs text-muted-foreground">
+                Average of the AI analysis ({aiScore}) and the interviewer&apos;s score ({humanScore}),
+                weighted 50 / 50.
+              </p>
+            )}
           </motion.div>
         )}
 

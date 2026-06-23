@@ -18,7 +18,7 @@ const USER_PLANS = {
 
 // Plan Feature Limits
 const PLAN_LIMITS = {
-  FREE_MONTHLY_SESSIONS: 3,              // max AI interview sessions per calendar month
+  FREE_MONTHLY_SESSIONS: 10,             // max AI interview sessions per calendar month
   FREE_DIFFICULTIES:     ['easy', 'medium'], // free users cannot start 'hard' sessions
 };
 

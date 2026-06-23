@@ -173,10 +173,11 @@ async function transcribeAudio(audioBuffer, filename = 'audio.webm', language = 
 /**
  * Analyze text with NLP (Sentence-BERT semantic similarity).
  */
-async function analyzeNLP(userAnswer, referenceAnswer = '') {
+async function analyzeNLP(userAnswer, referenceAnswer = '', questionText = '') {
   return _postJSON('/api/ai/analyze-nlp', {
     user_answer: userAnswer,
     reference_answer: referenceAnswer,
+    question_text: questionText,
   });
 }
 
@@ -213,6 +214,7 @@ async function generateQuestions(jobRole, techStack, difficulty = 'Medium', opti
     difficulty,
     include_soft_skills: options.includeSoftSkills || false,
     num_soft_skills: options.numSoftSkills || 2,
+    num_questions: options.numQuestions || 5,
   });
 }
 

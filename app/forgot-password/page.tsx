@@ -5,8 +5,10 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, Sparkles, Mail, KeyRound, ShieldCheck, Lock } from "lucide-react"
+import { REGEXP_ONLY_DIGITS } from "input-otp"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { authApi } from "@/lib/api"
@@ -275,16 +277,25 @@ export default function ForgotPasswordPage() {
               >
                 <div className="space-y-2">
                   <Label htmlFor="otp">Verification code</Label>
-                  <Input
+                  <InputOTP
                     id="otp"
-                    inputMode="numeric"
                     maxLength={6}
+                    pattern={REGEXP_ONLY_DIGITS}
                     value={otp}
-                    onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 6)); setError("") }}
-                    placeholder="123456"
+                    onChange={(value) => { setOtp(value); setError("") }}
                     autoFocus
-                    className="bg-secondary/40 border-border/60 text-center text-2xl tracking-[0.5em] font-semibold"
-                  />
+                    containerClassName="justify-center gap-2.5"
+                  >
+                    <InputOTPGroup className="gap-2.5">
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <InputOTPSlot
+                          key={i}
+                          index={i}
+                          className="h-12 w-12 rounded-xl border border-border/60 bg-secondary/40 text-lg font-semibold first:rounded-xl last:rounded-xl"
+                        />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
                 </div>
 
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}

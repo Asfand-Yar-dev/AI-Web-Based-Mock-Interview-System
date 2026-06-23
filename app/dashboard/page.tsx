@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { StatsCards } from "@/components/dashboard/stats-cards";
+import { PerformancePanel } from "@/components/dashboard/performance-panel";
 import { RecentSessions } from "@/components/dashboard/recent-sessions";
 import { motion } from "framer-motion";
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, Play } from "lucide-react";
 import { useAuth, useRequireAuth } from "@/contexts/auth-context";
 import { interviewApi, authApi, type InterviewSession } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,7 @@ export default function DashboardPage() {
     totalInterviews: 0,
     averageScore: 0,
     confidenceImprovement: 0,
+    currentStreak: 0,
     recentSessions: [] as DisplaySession[],
   });
 
@@ -74,7 +77,7 @@ export default function DashboardPage() {
       const statsResponse = await authApi.getStats();
       
       if (statsResponse.success && statsResponse.data) {
-        const { totalInterviews, averageScore, confidenceImprovement, recentSessions } = statsResponse.data;
+        const { totalInterviews, averageScore, confidenceImprovement, currentStreak, recentSessions } = statsResponse.data;
         
         // Map recent sessions to display format
         const mappedSessions: DisplaySession[] = recentSessions.map(session => ({
@@ -93,6 +96,7 @@ export default function DashboardPage() {
           totalInterviews,
           averageScore,
           confidenceImprovement,
+          currentStreak,
           recentSessions: mappedSessions,
         });
       }
@@ -105,6 +109,7 @@ export default function DashboardPage() {
         totalInterviews: 0,
         averageScore: 0,
         confidenceImprovement: 0,
+        currentStreak: 0,
         recentSessions: [],
       });
     } finally {
@@ -172,13 +177,23 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
+          className="flex flex-wrap items-start justify-between gap-4"
         >
-          <h1 className="text-3xl font-bold text-foreground">
-            {userName ? `Welcome back, ${userName}` : "Welcome back"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Ready to practice? Your interview skills are improving every day.
-          </p>
+          <div>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">
+              {userName ? `Welcome back, ${userName}` : "Welcome back"}
+            </h1>
+            <p className="text-muted-foreground mt-1.5">
+              Ready to practice? Your interview skills are improving every day.
+            </p>
+          </div>
+          <Link
+            href="/interview/new"
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-accent px-4.5 py-3 text-sm font-semibold text-accent-foreground shadow-[0_10px_26px_-12px_var(--glow)] transition-transform hover:-translate-y-0.5"
+          >
+            <Play className="h-[15px] w-[15px] fill-current" />
+            New interview
+          </Link>
         </motion.div>
 
         {/* Stats Cards */}
@@ -186,6 +201,12 @@ export default function DashboardPage() {
           totalInterviews={stats.totalInterviews}
           averageScore={stats.averageScore}
           confidenceImprovement={stats.confidenceImprovement}
+          currentStreak={stats.currentStreak}
+        />
+
+        {/* Performance trend + Skill breakdown */}
+        <PerformancePanel
+          latestCompletedId={stats.recentSessions.find((s) => s.status === "completed")?.id}
         />
 
         {/* Recent Sessions */}

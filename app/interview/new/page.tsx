@@ -26,7 +26,7 @@ export default function NewInterviewPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <h1 className="text-3xl font-bold text-foreground">Start a new interview</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">Start a new interview</h1>
           <p className="text-muted-foreground mt-1">
             Choose how you want to practice — with our AI, or with a real human interviewer.
           </p>
@@ -42,14 +42,14 @@ export default function NewInterviewPage() {
           >
             <Link
               href="/interview/setup"
-              className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card p-7 transition-all hover:border-chart-2/50 hover:shadow-lg hover:shadow-chart-2/5"
+              className="group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-border bg-card p-7 transition-all hover:border-accent/50 hover:shadow-lg hover:shadow-accent/5"
             >
               {/* Decorative shape */}
-              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-chart-2/10 blur-2xl transition-opacity group-hover:opacity-80" />
+              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl transition-opacity group-hover:opacity-80" />
 
               <div className="relative flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-chart-2/15">
-                  <Bot className="h-6 w-6 text-chart-2" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15">
+                  <Bot className="h-6 w-6 text-accent" />
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary/60 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   <Zap className="h-3 w-3" />
@@ -58,7 +58,7 @@ export default function NewInterviewPage() {
               </div>
 
               <div className="relative mt-5 space-y-1.5">
-                <h2 className="text-xl font-semibold text-card-foreground">AI Interview</h2>
+                <h2 className="font-display text-xl font-semibold text-card-foreground">AI Interview</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Practice with our AI interviewer. Pick your role, difficulty, and skills — start in under a minute.
                 </p>
@@ -71,7 +71,7 @@ export default function NewInterviewPage() {
                   { Icon: BadgeCheck, text: "Voice, content & body-language analysis" },
                 ].map(({ Icon, text }) => (
                   <li key={text} className="flex gap-2.5 text-muted-foreground">
-                    <Icon className="h-4 w-4 mt-0.5 text-chart-2 shrink-0" />
+                    <Icon className="h-4 w-4 mt-0.5 text-accent shrink-0" />
                     <span>{text}</span>
                   </li>
                 ))}
@@ -79,9 +79,9 @@ export default function NewInterviewPage() {
 
               <div className="relative mt-7 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {isPro ? "Included with Premium" : "Free • up to 3 / month"}
+                  {isPro ? "Included with Premium" : "Free • up to 10 / month"}
                 </span>
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-chart-2 group-hover:gap-3 transition-all">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent group-hover:gap-3 transition-all">
                   Start AI Interview
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </span>
@@ -98,7 +98,7 @@ export default function NewInterviewPage() {
             {isPro ? (
               <Link
                 href="/live-interview/book"
-                className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent p-7 transition-all hover:border-accent/60 hover:shadow-xl hover:shadow-accent/10"
+                className="group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-accent/40 bg-gradient-to-br from-accent/10 via-accent/5 to-transparent p-7 transition-all hover:border-accent/60 hover:shadow-xl hover:shadow-accent/10"
               >
                 <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-accent/20 blur-3xl transition-opacity group-hover:opacity-90" />
 
@@ -113,7 +113,7 @@ export default function NewInterviewPage() {
                 </div>
 
                 <div className="relative mt-5 space-y-1.5">
-                  <h2 className="text-xl font-semibold text-foreground">AI + Human Interview</h2>
+                  <h2 className="font-display text-xl font-semibold text-foreground">AI + Human Interview</h2>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Book a live session with a vetted human interviewer. Get a 360° report that combines AI metrics with human judgment.
                   </p>
@@ -144,7 +144,7 @@ export default function NewInterviewPage() {
               <button
                 type="button"
                 onClick={() => router.push("/upgrade?next=/live-interview/book")}
-                className="group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/60 p-7 text-left transition-all hover:border-accent/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group relative flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-border bg-card/60 p-7 text-left transition-all hover:border-accent/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {/* Subtle locked accent glow */}
                 <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-accent/8 blur-3xl" />
@@ -163,7 +163,7 @@ export default function NewInterviewPage() {
                 </div>
 
                 <div className="relative mt-5 space-y-1.5">
-                  <h2 className="text-xl font-semibold text-foreground">AI + Human Interview</h2>
+                  <h2 className="font-display text-xl font-semibold text-foreground">AI + Human Interview</h2>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Practice with a real, vetted interviewer over a live video call — with a combined AI + human report at the end.
                   </p>

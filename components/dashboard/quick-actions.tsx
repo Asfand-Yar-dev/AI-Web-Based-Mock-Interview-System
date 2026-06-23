@@ -21,13 +21,13 @@ export function QuickActions() {
       {/* ── Upgrade CTA (free users only) ── */}
       {isFree && (
         <Link href="/upgrade" className="block group">
-          <div className="relative overflow-hidden rounded-2xl border border-yellow-500/30 bg-gradient-to-br from-yellow-500/15 via-orange-500/10 to-transparent p-5 transition-all hover:border-yellow-500/50 hover:shadow-lg hover:shadow-yellow-500/10">
-            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-yellow-500/20 blur-2xl" />
+          <div className="relative overflow-hidden rounded-2xl border border-warning/30 bg-gradient-to-br from-warning/15 via-warning/10 to-transparent p-5 transition-all hover:border-warning/50 hover:shadow-lg hover:shadow-warning/10">
+            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-warning/20 blur-2xl" />
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 px-2.5 py-0.5 text-xs font-semibold text-yellow-400">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 border border-warning/30 px-2.5 py-0.5 text-xs font-semibold text-warning">
                       <Zap className="h-3 w-3" />
                       Free Plan
                     </span>
@@ -37,11 +37,11 @@ export function QuickActions() {
                     Unlimited sessions, all difficulties, live interviews & more.
                   </p>
                 </div>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-500/15 group-hover:bg-yellow-500/25 transition-colors">
-                  <Zap className="h-5 w-5 text-yellow-400" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/15 group-hover:bg-warning/25 transition-colors">
+                  <Zap className="h-5 w-5 text-warning" />
                 </div>
               </div>
-              <div className="mt-3 text-xs font-medium text-yellow-400 group-hover:underline">
+              <div className="mt-3 text-xs font-medium text-warning group-hover:underline">
                 View plans →
               </div>
             </div>

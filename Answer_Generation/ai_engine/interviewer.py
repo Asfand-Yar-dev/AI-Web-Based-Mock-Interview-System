@@ -23,6 +23,7 @@ Author: Smart Mock Interview System Team
 Version: 1.0
 """
 
+import difflib
 import logging
 import os
 import re
@@ -84,21 +85,23 @@ class InterviewConductor:
             
     
     def generate_questions(
-        self, 
-        job_role: str, 
-        tech_stack: str, 
-        difficulty: str = "Medium"
+        self,
+        job_role: str,
+        tech_stack: str,
+        difficulty: str = "Medium",
+        num_questions: int = 5
     ) -> List[str]:
         """
         Generate technical interview questions based on the candidate's profile.
-        
+
         Args:
             job_role (str): Target job role (e.g., "Full Stack Developer", "Data Scientist")
             tech_stack (str): Technologies the candidate knows (e.g., "React, Node.js, MongoDB")
             difficulty (str): Question difficulty level - "Easy", "Medium", or "Hard"
-        
+            num_questions (int): Number of questions to generate (default: 5)
+
         Returns:
-            List[str]: A list of 5 technical interview questions as clean strings
+            List[str]: A list of `num_questions` technical interview questions as clean strings
         
         Example:
             >>> conductor = InterviewConductor()
@@ -113,14 +116,14 @@ class InterviewConductor:
         # Construct a strict system prompt
         system_prompt = f"""You are a Professional Technical Recruiter conducting a technical interview.
 
-Your task is to generate EXACTLY 5 distinct, high-quality technical interview questions for the following profile:
+Your task is to generate EXACTLY {num_questions} distinct, high-quality technical interview questions for the following profile:
 
 - Job Role: {job_role}
 - Tech Stack: {tech_stack}
 - Difficulty Level: {difficulty}
 
 STRICT REQUIREMENTS:
-1. Generate exactly 5 questions
+1. Generate exactly {num_questions} questions
 2. Questions should be:
    - Conceptual (testing understanding, not just syntax)
    - Scenario-based where appropriate
@@ -183,11 +186,11 @@ Now generate the questions:"""
                 if question:
                     cleaned_questions.append(question)
             
-            # Ensure we have exactly 5 questions (take first 5 if more, pad if less)
-            if len(cleaned_questions) > 5:
-                cleaned_questions = cleaned_questions[:5]
-            elif len(cleaned_questions) < 5:
-                logger.warning(f"Only {len(cleaned_questions)} questions generated. Expected 5.")
+            # Ensure we have exactly num_questions questions (take first N if more)
+            if len(cleaned_questions) > num_questions:
+                cleaned_questions = cleaned_questions[:num_questions]
+            elif len(cleaned_questions) < num_questions:
+                logger.warning(f"Only {len(cleaned_questions)} questions generated. Expected {num_questions}.")
             
             return cleaned_questions
         
@@ -373,6 +376,35 @@ Generate the feedback now:"""
         Perform high-fidelity technical scoring of the candidate's response.
         Distinguishes between genuine answers, repeated questions, and filler.
         """
+        # ── Hard guard: silence or a repeated question is always 0 ──────────────
+        # The LLM is asked to return 0 for these cases, but it is not reliable
+        # and the fallbacks return non-zero, so enforce it deterministically here.
+        def _norm(text: str) -> list:
+            return re.sub(r"[^a-z0-9\s]", " ", (text or "").lower()).split()
+
+        answer_norm = _norm(user_answer)
+        question_norm = _norm(question)
+
+        # 1. Silence / no answer ("shut up") → 0
+        if not answer_norm:
+            logger.info("Technical score forced to 0: empty/silent answer.")
+            return 0
+
+        # 2. Candidate only repeated the question → 0
+        if question_norm:
+            q_words = set(question_norm)
+            # Words the candidate added that were NOT already in the question.
+            novel = [w for w in answer_norm if w not in q_words]
+            similarity = difflib.SequenceMatcher(
+                None, " ".join(question_norm), " ".join(answer_norm)
+            ).ratio()
+            if not novel or similarity >= 0.85:
+                logger.info(
+                    f"Technical score forced to 0: answer repeats the question "
+                    f"(novel_words={len(novel)}, similarity={similarity:.2f})."
+                )
+                return 0
+
         scoring_prompt = f"""You are a Senior Technical Recruiter. Grade this interview answer.
 
 IMPORTANT CONTEXT: The candidate's response below is an automatic speech-to-text transcript.
@@ -432,7 +464,10 @@ OUTPUT: Return ONLY the integer score (0-100). No explanation."""
         for msg in conversation:
             history_str += f"{msg['role'].capitalize()}: {msg['content']}\n"
 
-        prompt = f"""You are the Intervexa AI Vetting Assistant. Your job is to conduct a professional chat interview to verify a new expert who wants to join our mock interview platform as an interviewer.
+        # Which question are we on? (each prior user reply = one answered question)
+        question_number = sum(1 for m in conversation if m.get("role") == "user") + 1
+
+        prompt = f"""You are the Intervexa AI Vetting Assistant. You run a 10-question chat to verify a new expert who wants to join our platform as an interviewer. This is question {question_number} of 10.
 
 Interviewer Profile under review:
 - Domains: {", ".join(profile.get("domains", []))}
@@ -440,16 +475,22 @@ Interviewer Profile under review:
 - Skills: {", ".join(profile.get("skills", []))}
 - Bio: {profile.get("bio", "No bio provided.")}
 
-Here is the conversation history so far:
+Conversation so far:
 {history_str}
 
+GOAL — across all 10 questions, thoroughly probe everything we must verify about this candidate:
+- Core technical concepts in the EXACT skills/domains they listed (definitions, how things work under the hood).
+- Conceptual understanding and trade-offs (when to use X vs Y, pros/cons, failure modes).
+- Applied/practical knowledge (how they'd actually solve or debug a real problem in their domain).
+- Depth vs buzzwords — questions that a pretender could not answer with generic fluff.
+- Interviewer/evaluation mindset — reserve about 1-2 of the later questions for how they would assess or coach a candidate.
+
 STRICT INSTRUCTIONS:
-1. Generate the next logical question to ask the candidate.
-2. Ask a mix of short or medium length technical, conceptual, and situational questions. Make sure the questions specifically test their technical depth and evaluation mindset in the skills and domains they listed.
-3. Do NOT repeat questions already asked.
-4. Keep it conversational, warm, and highly professional.
-5. Limit the question to exactly 1 or 2 sentences.
-6. Return ONLY the question. Do not include any greeting, introduction, meta-commentary, or markdown formatting.
+1. Ask exactly ONE question — the next logical one given the history.
+2. Keep it SHORT: a single sentence, ideally under 20 words. Be specific and technical, not vague or open-ended chit-chat.
+3. Make it concrete to their listed skills/domains (name the actual technology/concept).
+4. Increase difficulty as the question number rises; do NOT repeat or rephrase anything already asked.
+5. No greetings, no preamble, no praise, no markdown — output ONLY the question text.
 
 Next question:"""
         return self._generate_with_retry(prompt)
@@ -598,20 +639,36 @@ Interviewer Profile under review:
 Conversation Transcript:
 {history_str}
 
-CRITICAL GRADING INSTRUCTIONS:
-1. Be extremely strict and rigorous. We only verify top-tier experts.
-2. The vetting chat consists of 10 rounds of questions. Check how many questions the candidate actually answered. If they skipped questions, left them blank, gave extremely brief/lazy responses (e.g. 'skip', 'yes', 'no', 'i don't know'), or only answered a few questions, they MUST fail. Set their score between 0 and 50 and set the decision to 'rejected'.
-3. Evaluate their technical depth. Do they demonstrate genuine technical expertise? If their technical explanations are surface-level, shallow, or generic, penalize them heavily.
-4. Empathy & Communication: Do they show a coaching, supportive mindset for mock interviewing?
+Your job is to ANALYSE the answers and report findings as clear, specific points. You do NOT assign the final numeric score — our system computes that from your findings. Be extremely strict; we only verify top-tier experts.
+
+The vetting chat has 10 questions. An answer shown as "[Skipped]" means the candidate skipped it (do NOT count these as incorrect or shallow — skips are tallied separately by our system).
+
+Analyse ONLY the answered questions across these dimensions:
+1. TECHNICAL CORRECTNESS — is each answer factually/technically right for the skills & domains listed? Count how many answered questions are clearly WRONG or inaccurate.
+2. DEPTH — does each answer show genuine, practitioner-level depth, or is it shallow/generic/buzzword-level? Count how many answered questions are shallow.
+3. AUTHENTICITY / AI-GENERATED DETECTION — judge whether answers were written by the candidate or copy-pasted from an AI assistant (e.g. ChatGPT). Signs of AI-generated text:
+   - Suspiciously polished, textbook-perfect prose with no personal voice or natural hesitation.
+   - Generic, encyclopedic definitions with no reference to the candidate's OWN projects, teams, or concrete situations.
+   - Formulaic LLM structure ("Firstly/Secondly/In conclusion", rigid lists, restating the question, over-hedged balance).
+   - Inconsistent voice/depth swinging between answers.
+   Set "ai_generated_suspected" to true if one or more answers clearly look AI-generated. Genuine, personal, first-person answers must NOT be flagged.
+
+Then write the findings as SHORT, SPECIFIC bullet points the candidate can act on:
+- "mistakes": each bullet names one concrete problem (e.g. "Incorrect explanation of JavaScript closures in Q3", "Answer on React reconciliation was too generic", "Several answers read as AI-generated — no personal examples"). One sentence each.
+- "strengths": short bullets for what they genuinely did well (may be empty).
+- "summary": one or two sentences of overall assessment.
 
 STRICT OUTPUT REQUIREMENT:
-You must output a single JSON object. Do NOT wrap the JSON in markdown formatting (like ```json). Return ONLY the raw JSON string.
+Output a SINGLE raw JSON object. NO markdown, NO ```json fences, NO extra text.
 
 Expected JSON format:
 {{
-  "score": <integer from 0 to 100>,
-  "feedback": "<detailed feedback paragraph outlining their strengths and advice for areas of improvement>",
-  "decision": "approved" or "rejected" (use "approved" only if score is 70 or higher, else "rejected")
+  "summary": "<1-2 sentence overall assessment>",
+  "strengths": ["short specific strength", "..."],
+  "mistakes": ["short specific mistake", "..."],
+  "incorrect_count": <integer — answered questions that were technically wrong>,
+  "shallow_count": <integer — answered questions that were shallow/generic>,
+  "ai_generated_suspected": <true or false>
 }}
 
 Now, generate the JSON output:"""

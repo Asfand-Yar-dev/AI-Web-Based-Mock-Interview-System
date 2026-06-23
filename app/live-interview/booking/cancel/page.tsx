@@ -8,8 +8,8 @@ export default function BookingCancelPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-2xl border border-border/50 bg-card p-8 text-center shadow-xl">
         {/* Icon */}
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
-          <XCircle className="h-8 w-8 text-amber-400" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-warning/15 ring-1 ring-warning/30">
+          <XCircle className="h-8 w-8 text-warning" />
         </div>
 
         <h1 className="text-2xl font-bold text-card-foreground">Payment cancelled</h1>

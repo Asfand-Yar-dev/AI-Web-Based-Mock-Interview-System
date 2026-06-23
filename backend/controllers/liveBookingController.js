@@ -102,9 +102,10 @@ async function requestBooking(req, res) {
   if (!interviewer) {
     throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Interviewer not found');
   }
-  if (!interviewer.isVerified) {
-    throw new ApiError(HTTP_STATUS.FORBIDDEN, 'This interviewer is not verified/certified yet');
-  }
+  // [VETTING QUARANTINED] verification gate disabled for testing. Restore on request.
+  // if (!interviewer.isVerified) {
+  //   throw new ApiError(HTTP_STATUS.FORBIDDEN, 'This interviewer is not verified/certified yet');
+  // }
   if (!interviewer.isAcceptingBookings) {
     throw new ApiError(HTTP_STATUS.CONFLICT, 'This interviewer is not currently accepting bookings');
   }
@@ -205,12 +206,45 @@ async function respondToBooking(req, res) {
     });
   }
 
-  // Reject
-  booking.status = LIVE_BOOKING_STATUS.REJECTED;
+  // Reject — record who declined so we never re-offer it to them.
+  if (!Array.isArray(booking.declinedInterviewerIds)) booking.declinedInterviewerIds = [];
+  if (!booking.declinedInterviewerIds.some(id => String(id) === String(intvId))) {
+    booking.declinedInterviewerIds.push(intvId);
+  }
   if (note) booking.interviewerNote = note;
+
+  // Try to auto-reassign to another available interviewer in the same domain,
+  // skipping everyone who has already declined this booking.
+  const bookingService = require('../services/bookingService');
+  const nextInterviewer = await bookingService.findMatchingInterviewer({
+    role: booking.role,
+    skills: booking.skills || [],
+    domain: booking.domain,
+    scheduledTime: booking.scheduledTime,
+    excludeInterviewerIds: booking.declinedInterviewerIds,
+  });
+
+  if (nextInterviewer) {
+    // Re-offer the request to the new interviewer; it stays pending_approval.
+    booking.interviewerId = nextInterviewer._id;
+    booking.interviewerNote = undefined; // previous interviewer's note no longer applies
+    booking.status = LIVE_BOOKING_STATUS.PENDING_APPROVAL;
+    await booking.save();
+
+    logger.info(`[booking] ${booking._id} declined by ${intvId} — reassigned to ${nextInterviewer._id}`);
+
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: 'Booking declined and re-sent to another available interviewer in the same domain.',
+      data: { bookingId: booking._id, status: booking.status, reassignedTo: nextInterviewer._id },
+    });
+  }
+
+  // No other interviewer available — finalise as rejected and notify the applicant.
+  booking.status = LIVE_BOOKING_STATUS.REJECTED;
   await booking.save();
 
-  logger.info(`[booking] ${booking._id} rejected by interviewer ${intvId}${note ? ` — reason: ${note}` : ''}`);
+  logger.info(`[booking] ${booking._id} rejected by interviewer ${intvId} — no other interviewer available${note ? ` — reason: ${note}` : ''}`);
 
   if (applicant?.email) {
     sendBookingRejected({
@@ -224,7 +258,7 @@ async function respondToBooking(req, res) {
 
   res.status(HTTP_STATUS.OK).json({
     success: true,
-    message: 'Booking rejected.',
+    message: 'Booking rejected. No other interviewer was available in this domain.',
     data: { bookingId: booking._id, status: booking.status },
   });
 }
@@ -423,12 +457,14 @@ async function joinMeeting(req, res) {
     throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You are not part of this booking');
   }
 
-  if (isInterviewer) {
-    const interviewer = await Interviewer.findOne({ userId: req.user.id });
-    if (!interviewer || !interviewer.isVerified) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You must complete AI Certification Vetting before conducting interviews.');
-    }
-  }
+  // [VETTING QUARANTINED] interviewer verification gate disabled for testing.
+  // Restore the block below on request.
+  // if (isInterviewer) {
+  //   const interviewer = await Interviewer.findOne({ userId: req.user.id });
+  //   if (!interviewer || !interviewer.isVerified) {
+  //     throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You must complete AI Certification Vetting before conducting interviews.');
+  //   }
+  // }
   if (!['meeting_scheduled', 'meeting_started'].includes(booking.status)) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, `Cannot join — booking is ${booking.status}`);
   }
@@ -730,13 +766,14 @@ async function checkConflict(req, res) {
   if (!interviewer) {
     throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Interviewer not found');
   }
-  if (!interviewer.isVerified) {
-    return res.status(HTTP_STATUS.OK).json({
-      success: true,
-      available: false,
-      message: 'This interviewer has not completed verification vetting.'
-    });
-  }
+  // [VETTING QUARANTINED] verification availability check disabled for testing. Restore on request.
+  // if (!interviewer.isVerified) {
+  //   return res.status(HTTP_STATUS.OK).json({
+  //     success: true,
+  //     available: false,
+  //     message: 'This interviewer has not completed verification vetting.'
+  //   });
+  // }
   if (!interviewer.isAcceptingBookings) {
     return res.status(HTTP_STATUS.OK).json({
       success: true,

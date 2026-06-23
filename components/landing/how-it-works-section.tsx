@@ -4,69 +4,53 @@ import { motion } from "framer-motion"
 
 const steps = [
   {
-    step: "01",
-    title: "Set Up Your Profile",
-    description:
-      "Enter your target role, skills, and job description. Our AI customizes the interview experience just for you.",
+    n: "1",
+    title: "Set your target role",
+    body: "Pick a role, seniority, and focus skills. Intervexa builds a tailored question set.",
   },
   {
-    step: "02",
-    title: "Practice with AI",
-    description:
-      "Engage in realistic mock interviews with our AI interviewer. Answer questions while we analyze your responses.",
+    n: "2",
+    title: "Run a live mock",
+    body: "Answer on camera. The AI listens, watches, and follows up like a real panel.",
   },
   {
-    step: "03",
-    title: "Get Instant Feedback",
-    description:
-      "Receive detailed analysis of your performance including voice, body language, and answer quality metrics.",
-  },
-  {
-    step: "04",
-    title: "Improve & Repeat",
-    description: "Review your personalized improvement plan, practice more, and track your progress over time.",
+    n: "3",
+    title: "Get a coached report",
+    body: "A full breakdown of voice, presence, and content — with the next thing to practice.",
   },
 ]
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="py-15 bg-secondary/30">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl font-bold text-foreground sm:text-4xl mb-4">How it works</h2>
-          <p className="max-w-2xl mx-auto text-muted-foreground text-lg">
-            Get started in minutes and see improvement after your first session
-          </p>
-        </motion.div>
+    <section id="how-it-works" className="mx-auto max-w-[1160px] px-7 pt-28">
+      <div className="mb-11 text-center">
+        <div className="mb-3.5 font-mono text-xs uppercase tracking-[0.1em] text-accent">How it works</div>
+        <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-balance">
+          Three steps to interview-ready
+        </h2>
+      </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-          {steps.map((item, index) => (
-            <motion.div
-              key={item.step}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.15 }}
-              className="relative"
-            >
-              
-
-              <div className="relative space-y-4">
-                <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10 text-accent font-mono text-xl font-bold">
-                  {item.step}
-                </div>
-                <h3 className="text-xl font-semibold text-foreground">{item.title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-0">
+        {steps.map((step, i) => (
+          <motion.div
+            key={step.n}
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5, delay: i * 0.1 }}
+            className="relative px-5 text-center"
+          >
+            {/* Connector line (not on the last step) */}
+            {i < steps.length - 1 && (
+              <div className="absolute left-1/2 top-6 hidden h-0.5 w-full bg-gradient-to-r from-accent to-border md:block" />
+            )}
+            <div className="relative mx-auto mb-5 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-accent font-display text-lg font-bold text-accent-foreground shadow-[0_0_0_6px_var(--accent-soft)]">
+              {step.n}
+            </div>
+            <h3 className="mb-2 font-display text-lg font-semibold">{step.title}</h3>
+            <p className="mx-auto max-w-[260px] text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+          </motion.div>
+        ))}
       </div>
     </section>
   )

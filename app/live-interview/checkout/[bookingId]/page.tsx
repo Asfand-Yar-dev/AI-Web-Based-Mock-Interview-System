@@ -105,12 +105,12 @@ export default function CheckoutPage() {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4"
+          className="flex items-start gap-3 rounded-2xl border border-info/30 bg-info/10 px-5 py-4"
         >
-          <CheckCircle2 className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+          <CheckCircle2 className="h-5 w-5 text-info shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-blue-300 text-sm">Your interview booking has been accepted.</p>
-            <p className="text-xs text-blue-400/80 mt-0.5">Please proceed with payment to confirm your session.</p>
+            <p className="font-semibold text-info text-sm">Your interview booking has been accepted.</p>
+            <p className="text-xs text-info/80 mt-0.5">Please proceed with payment to confirm your session.</p>
           </div>
         </motion.div>
       )}
@@ -152,8 +152,8 @@ export default function CheckoutPage() {
           <div className="flex items-center gap-4">
             {/* Jazzcash */}
             <div className="flex flex-1 items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/20">
-                <CreditCard className="h-4 w-4 text-red-400" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/20">
+                <CreditCard className="h-4 w-4 text-destructive" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-card-foreground">Jazzcash</p>
@@ -162,8 +162,8 @@ export default function CheckoutPage() {
             </div>
             {/* Easypaisa */}
             <div className="flex flex-1 items-center gap-3 rounded-xl border border-border/30 bg-secondary/30 px-4 py-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/20">
-                <CreditCard className="h-4 w-4 text-green-400" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success/20">
+                <CreditCard className="h-4 w-4 text-success" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-card-foreground">Easypaisa</p>
@@ -182,7 +182,7 @@ export default function CheckoutPage() {
 
         {/* Security note */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+          <ShieldCheck className="h-4 w-4 text-success shrink-0" />
           Payments are processed securely. Your card details are never stored by Intervexa.
         </div>
 

@@ -20,8 +20,9 @@ export default function LiveRoomPage() {
   const roomId = params?.roomId as string;
   const { user } = useAuth();
 
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [error, setError]         = useState<string | null>(null);
+  const [bookingId, setBookingId]   = useState<string | null>(null);
+  const [isApplicant, setIsApplicant] = useState(false);
+  const [error, setError]           = useState<string | null>(null);
 
   useEffect(() => {
     async function resolveBooking() {
@@ -33,7 +34,9 @@ export default function LiveRoomPage() {
           const data = await res.json();
           if (!res.ok) continue;
           const match = (data.data as any[]).find((b) => b.meetingRoomId === roomId);
-          if (match) { setBookingId(match._id); return; }
+          // The applicant is matched by the plain /mine call; ?as=interviewer
+          // returns the bookings where the viewer is the interviewer.
+          if (match) { setBookingId(match._id); setIsApplicant(qs === ""); return; }
         }
         throw new Error("You are not a participant of this room.");
       } catch (err: any) {
@@ -68,8 +71,9 @@ export default function LiveRoomPage() {
     <LiveInterviewRoom
       bookingId={bookingId}
       meetingRoomId={roomId}
+      isApplicant={isApplicant}
       localName={user?.name || "You"}
-      remoteName="Interviewer"
+      remoteName={isApplicant ? "Interviewer" : "Candidate"}
       onEnded={() => router.push(`/live-interview/results/${bookingId}`)}
     />
   );

@@ -1,8 +1,8 @@
 "use client"
 
-import Link from "next/link"
-import { Sparkles } from "lucide-react"
 import { toast } from "sonner"
+
+const LINKS = ["Privacy", "Terms", "Security", "Contact"]
 
 export function Footer() {
   const showComingSoon = (feature: string) => {
@@ -12,115 +12,22 @@ export function Footer() {
   }
 
   return (
-    <footer className="border-t border-border/50 bg-secondary/20 py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-8 md:grid-cols-4">
-          {/* Brand */}
-          <div className="space-y-4">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-                <Sparkles className="h-4 w-4 text-accent-foreground" />
-              </div>
-              <span className="text-lg font-semibold text-foreground">Intervexa</span>
-            </Link>
-            <p className="text-sm text-muted-foreground">
-              Master your interviews with AI-powered practice sessions and personalized feedback.
-            </p>
-          </div>
-
-          {/* Product */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold text-foreground">Product</h3>
-            <ul className="space-y-3 text-sm">
-              <li>
-                <Link href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Features
-                </Link>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Pricing")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Pricing
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Demo")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Demo
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold text-foreground">Company</h3>
-            <ul className="space-y-3 text-sm">
-              <li>
-                <button
-                  onClick={() => showComingSoon("About page")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  About
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Blog")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Blog
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Careers page")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Careers
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold text-foreground">Legal</h3>
-            <ul className="space-y-3 text-sm">
-              <li>
-                <button
-                  onClick={() => showComingSoon("Privacy policy")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Privacy
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Terms of service")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Terms
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => showComingSoon("Contact page")}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Contact
-                </button>
-              </li>
-            </ul>
-          </div>
+    <footer className="mx-auto max-w-[1200px] px-7 pt-20 pb-12">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-10">
+        <div className="flex items-center gap-2.5 text-sm text-faint">
+          <div className="h-[26px] w-[26px] rounded-[8px] bg-gradient-to-br from-accent to-accent-strong" />
+          Intervexa © {new Date().getFullYear()}
         </div>
-
-        <div className="mt-12 border-t border-border/50 pt-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Intervexa. All rights reserved.</p>
+        <div className="flex gap-6 text-sm text-faint">
+          {LINKS.map((link) => (
+            <button
+              key={link}
+              onClick={() => showComingSoon(link)}
+              className="transition-colors hover:text-foreground"
+            >
+              {link}
+            </button>
+          ))}
         </div>
       </div>
     </footer>

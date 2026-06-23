@@ -20,10 +20,16 @@ import {
   FileText,
   Loader2,
   ArrowLeft,
-  ChevronDown,
   Gauge,
   Volume2,
 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useRequireAuth } from "@/contexts/auth-context"
 import { interviewApi } from "@/lib/api"
 import { toast } from "sonner"
@@ -82,8 +88,9 @@ const difficultyOptions = [
   },
 ]
 
-const selectClass =
-  "h-12 w-full appearance-none rounded-xl border border-border/50 bg-secondary/50 pl-3 pr-10 text-base text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+// Shared trigger styling so both dropdowns match the form's rounded, soft-filled inputs.
+const selectTriggerClass =
+  "h-12 w-full rounded-xl border-border/50 bg-secondary/50 px-3 text-base data-[placeholder]:text-muted-foreground"
 
 export default function InterviewSetupPage() {
   const router = useRouter()
@@ -188,6 +195,13 @@ export default function InterviewSetupPage() {
   }
 
   const isFormValid = formData.jobTitle.trim() && formData.skills.length > 0
+
+  // Include a custom-entered role so the dropdown can display it as selected.
+  const roleList =
+    formData.jobTitle && !roleOptions.includes(formData.jobTitle)
+      ? [formData.jobTitle, ...roleOptions]
+      : roleOptions
+  const availableSkills = suggestedSkills.filter((s) => !formData.skills.includes(s))
 
   // Show loading while checking auth
   if (authLoading) {
@@ -317,23 +331,23 @@ export default function InterviewSetupPage() {
               </div>
               <div className="space-y-3">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Role</Label>
-                <div className="relative">
-                  <select
-                    value={formData.jobTitle}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, jobTitle: e.target.value }))
-                    }
-                    className={selectClass}
-                  >
-                    <option value="">Select a job role</option>
-                    {roleOptions.map((role) => (
-                      <option key={role} value={role}>
+                <Select
+                  value={formData.jobTitle || undefined}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, jobTitle: value }))
+                  }
+                >
+                  <SelectTrigger className={selectTriggerClass}>
+                    <SelectValue placeholder="Select a job role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleList.map((role) => (
+                      <SelectItem key={role} value={role}>
                         {role}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                </div>
+                  </SelectContent>
+                </Select>
 
                 <div className="flex gap-2">
                   <Input
@@ -397,27 +411,24 @@ export default function InterviewSetupPage() {
 
               <div className="space-y-3 mb-4">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Add from list</Label>
-                <div className="relative">
-                  <select
-                    defaultValue=""
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (value) addSkill(value)
-                      e.currentTarget.value = ""
-                    }}
-                    className={selectClass}
-                  >
-                    <option value="">Choose a skill…</option>
-                    {suggestedSkills
-                      .filter((s) => !formData.skills.includes(s))
-                      .map((skill) => (
-                        <option key={skill} value={skill}>
+                <Select key={formData.skills.length} onValueChange={(value) => addSkill(value)}>
+                  <SelectTrigger className={selectTriggerClass}>
+                    <SelectValue placeholder="Choose a skill…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSkills.length > 0 ? (
+                      availableSkills.map((skill) => (
+                        <SelectItem key={skill} value={skill}>
                           {skill}
-                        </option>
-                      ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        All suggested skills added
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
 
                 <Input
                   placeholder="Custom skill — press Enter"
@@ -505,17 +516,17 @@ export default function InterviewSetupPage() {
             <Button
               type="submit"
               disabled={!isFormValid || isLoading}
-              className="w-full h-20 bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-semibold disabled:opacity-50 flex flex-col items-center justify-center gap-2"
+              className="w-full h-12 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold disabled:opacity-50"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Preparing Your Interview...
                 </>
               ) : (
                 <>
                   Start Interview
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
             </Button>

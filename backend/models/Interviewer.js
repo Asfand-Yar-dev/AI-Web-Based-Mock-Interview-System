@@ -29,8 +29,9 @@ const interviewerSchema = new mongoose.Schema({
   },
 
   // ── Profile ───────────────────────────────────────────────────────────────
-  bio:         { type: String, maxlength: 2000, trim: true },
-  linkedinUrl: { type: String, trim: true },
+  bio:               { type: String, maxlength: 2000, trim: true },
+  linkedinUrl:       { type: String, trim: true },
+  yearsOfExperience: { type: Number, min: 0, max: 60 },
 
   // ── Matching fields ───────────────────────────────────────────────────────
   // All lowercase for case-insensitive matching
@@ -69,6 +70,8 @@ const interviewerSchema = new mongoose.Schema({
     {
       role: { type: String, enum: ['user', 'assistant', 'system'] },
       content: { type: String },
+      pasted: { type: Boolean, default: false },   // answer was pasted (likely copied from an AI assistant)
+      skipped: { type: Boolean, default: false },  // candidate explicitly skipped the question
       timestamp: { type: Date, default: Date.now }
     }
   ],

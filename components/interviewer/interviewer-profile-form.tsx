@@ -12,9 +12,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Calendar,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { liveInterviewApi } from "@/lib/liveInterviewApi"
+import { liveInterviewApi, type InterviewerProfile } from "@/lib/liveInterviewApi"
 
 interface ProfilePayload {
   domain: string
@@ -24,6 +25,56 @@ interface ProfilePayload {
   bio: string
   linkedIn: string
   hourlyRate: string
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+interface AvailabilityRow {
+  enabled: boolean
+  startTime: string
+  endTime: string
+}
+
+const DEFAULT_AVAILABILITY: AvailabilityRow[] = DAY_NAMES.map((_, i) => ({
+  enabled: i >= 1 && i <= 5, // Mon–Fri default
+  startTime: "09:00",
+  endTime: "17:00",
+}))
+
+const EMPTY_FORM: ProfilePayload = {
+  domain: "",
+  skills: "",
+  roles: "",
+  yearsOfExperience: "",
+  bio: "",
+  linkedIn: "",
+  hourlyRate: "",
+}
+
+// Map a saved interviewer profile onto the form fields so editing starts from
+// the existing data instead of a blank form.
+function mapProfileToForm(p: InterviewerProfile): ProfilePayload {
+  return {
+    // Lowercase so the value matches the dropdown's option values even if the
+    // stored domain was saved with different casing.
+    domain: (p.domains?.[0] || "").toLowerCase(),
+    skills: (p.skills || []).join(", "),
+    roles: (p.roles || []).join(", "),
+    yearsOfExperience: p.yearsOfExperience !== undefined && p.yearsOfExperience !== null ? String(p.yearsOfExperience) : "",
+    bio: p.bio || "",
+    linkedIn: p.linkedinUrl || "",
+    hourlyRate: p.hourlyRate !== undefined ? String(p.hourlyRate) : "",
+  }
+}
+
+function mapProfileToAvailability(p: InterviewerProfile): AvailabilityRow[] {
+  if (!Array.isArray(p.availability) || p.availability.length === 0) return DEFAULT_AVAILABILITY
+  return DAY_NAMES.map((_, i) => {
+    const slot = p.availability.find((a) => a.dayOfWeek === i)
+    return slot
+      ? { enabled: true, startTime: slot.startTime, endTime: slot.endTime }
+      : { enabled: false, startTime: "09:00", endTime: "17:00" }
+  })
 }
 
 const DOMAINS = [
@@ -64,38 +115,39 @@ function FieldLabel({ icon: Icon, label, required }: { icon: React.ComponentType
 
 interface InterviewerProfileFormProps {
   onSaved?: () => void
+  /** Pre-loaded profile from the parent. When provided, the form pre-fills
+   *  instantly and skips its own fetch — so editing never starts from blank. */
+  initialProfile?: InterviewerProfile | null
 }
 
-export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps) {
-  const [form, setForm] = useState<ProfilePayload>({
-    domain: "",
-    skills: "",
-    roles: "",
-    yearsOfExperience: "",
-    bio: "",
-    linkedIn: "",
-    hourlyRate: "",
-  })
-  const [loadingProfile, setLoadingProfile] = useState(true)
+export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerProfileFormProps) {
+  const [form, setForm] = useState<ProfilePayload>(
+    initialProfile ? mapProfileToForm(initialProfile) : EMPTY_FORM,
+  )
+  const [availability, setAvailability] = useState<AvailabilityRow[]>(
+    initialProfile ? mapProfileToAvailability(initialProfile) : DEFAULT_AVAILABILITY,
+  )
+  // Only show the loading state when we have to fetch the profile ourselves.
+  const [loadingProfile, setLoadingProfile] = useState(!initialProfile)
   const [busy, setBusy]       = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
   useEffect(() => {
+    // Parent already supplied the profile — nothing to fetch.
+    if (initialProfile) {
+      setForm(mapProfileToForm(initialProfile))
+      setAvailability(mapProfileToAvailability(initialProfile))
+      setLoadingProfile(false)
+      return
+    }
     async function loadProfile() {
       try {
         const res = await liveInterviewApi.getMyInterviewerProfile()
         const p = res.data
         if (p) {
-          setForm({
-            domain: p.domains?.[0] || "",
-            skills: (p.skills || []).join(", "),
-            roles: (p.roles || []).join(", "),
-            yearsOfExperience: "",
-            bio: p.bio || "",
-            linkedIn: p.linkedinUrl || "",
-            hourlyRate: p.hourlyRate !== undefined ? String(p.hourlyRate) : "",
-          })
+          setForm(mapProfileToForm(p))
+          setAvailability(mapProfileToAvailability(p))
         }
       } catch (err: any) {
         console.error("Failed to load interviewer profile:", err)
@@ -104,10 +156,22 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
       }
     }
     loadProfile()
-  }, [])
+  }, [initialProfile])
 
   function patch(p: Partial<ProfilePayload>) {
     setForm((f) => ({ ...f, ...p }))
+    setSuccess(false)
+    setError(null)
+  }
+
+  function toggleDay(idx: number) {
+    setAvailability((prev) => prev.map((row, i) => (i === idx ? { ...row, enabled: !row.enabled } : row)))
+    setSuccess(false)
+    setError(null)
+  }
+
+  function setDayTime(idx: number, key: "startTime" | "endTime", value: string) {
+    setAvailability((prev) => prev.map((row, i) => (i === idx ? { ...row, [key]: value } : row)))
     setSuccess(false)
     setError(null)
   }
@@ -136,6 +200,10 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
       isAcceptingBookings: true,                                                         // always visible in search
       bio:                 form.bio.trim() || undefined,
       linkedinUrl:         form.linkedIn.trim() || undefined,                            // backend field name
+      yearsOfExperience:   form.yearsOfExperience.trim() ? Number(form.yearsOfExperience) : undefined,
+      availability:        availability                                                  // weekly availability slots
+        .map((row, i) => (row.enabled ? { dayOfWeek: i, startTime: row.startTime, endTime: row.endTime } : null))
+        .filter(Boolean),
     }
 
     setBusy(true)
@@ -159,7 +227,7 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
       className="space-y-6"
     >
       {/* Card */}
-      <div className="rounded-2xl border border-border/50 bg-card p-6 space-y-6">
+      <div className="rounded-[17px] border border-border bg-card p-6 space-y-6">
         <div className="flex items-center gap-2 border-b border-border/40 pb-4">
           <UserCircle className="h-5 w-5 text-accent" />
           <div>
@@ -232,11 +300,11 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
 
           {/* Rate */}
           <div>
-            <FieldLabel icon={Star} label="Rate per Hour (USD)" required />
+            <FieldLabel icon={Star} label="Rate per Hour (PKR)" required />
             <input
               type="number"
               min={0}
-              placeholder="e.g. 50"
+              placeholder="e.g. 5000"
               value={form.hourlyRate}
               onChange={(e) => patch({ hourlyRate: e.target.value })}
               className="w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
@@ -268,6 +336,55 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
           </div>
         </div>
 
+        {/* Weekly Availability */}
+        <div className="border-t border-border/40 pt-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-accent" />
+            <div>
+              <h3 className="text-base font-semibold text-card-foreground">Weekly Availability</h3>
+              <p className="text-xs text-muted-foreground">
+                Toggle the days you're available and set your hours. The system uses this to auto-match bookings.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {availability.map((row, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 rounded-xl p-3 transition-colors ${row.enabled ? "bg-secondary/30" : "bg-secondary/10 opacity-60"}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleDay(i)}
+                  className={`flex h-9 w-16 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                    row.enabled
+                      ? "bg-accent/15 text-accent border border-accent/30"
+                      : "bg-secondary text-muted-foreground border border-border/40"
+                  }`}
+                >
+                  {DAY_NAMES[i]}
+                </button>
+                <input
+                  type="time"
+                  value={row.startTime}
+                  onChange={(e) => setDayTime(i, "startTime", e.target.value)}
+                  disabled={!row.enabled}
+                  className="flex-1 rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all disabled:opacity-50"
+                />
+                <span className="text-xs text-muted-foreground shrink-0">to</span>
+                <input
+                  type="time"
+                  value={row.endTime}
+                  onChange={(e) => setDayTime(i, "endTime", e.target.value)}
+                  disabled={!row.enabled}
+                  className="flex-1 rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all disabled:opacity-50"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Error / Success */}
         {error && (
           <motion.div
@@ -284,7 +401,7 @@ export function InterviewerProfileForm({ onSaved }: InterviewerProfileFormProps)
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400"
+            className="flex items-center gap-2 rounded-xl bg-success/10 border border-success/20 px-4 py-3 text-sm text-success"
           >
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             Profile saved successfully!

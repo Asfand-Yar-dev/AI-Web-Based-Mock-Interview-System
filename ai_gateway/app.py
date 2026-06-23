@@ -564,9 +564,10 @@ def generate_questions():
     difficulty = data.get("difficulty", "Medium")
     include_soft = data.get("include_soft_skills", False)
     num_soft = data.get("num_soft_skills", 2)
+    num_questions = data.get("num_questions", 5)
 
     try:
-        questions = conductor.generate_questions(job_role, tech_stack, difficulty)
+        questions = conductor.generate_questions(job_role, tech_stack, difficulty, num_questions)
 
         result = {
             "status": "success",
@@ -675,9 +676,12 @@ def evaluate_vetting():
         except Exception:
             # Fallback parsing if LLM output is slightly malformed
             result_json = {
-                "score": 70,
-                "feedback": result_str,
-                "decision": "approved"
+                "summary": result_str,
+                "strengths": [],
+                "mistakes": [],
+                "incorrect_count": 0,
+                "shallow_count": 0,
+                "ai_generated_suspected": False
             }
 
         return jsonify({

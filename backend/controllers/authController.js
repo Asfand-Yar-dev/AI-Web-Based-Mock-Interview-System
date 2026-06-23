@@ -336,18 +336,24 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   const { name } = req.body;
 
-  const user = await User.findById(req.user.id);
+  // Build the set of allowed updates.
+  const updates = {};
+  if (name && name.trim()) {
+    updates.name = name.trim();
+  }
+
+  // Use a targeted update with runValidators so only the changed fields are
+  // validated. A full document .save() would re-validate the `required`
+  // password field, which is `select: false` and therefore not loaded here —
+  // that previously made every profile update fail for email/password users.
+  const user = await User.findByIdAndUpdate(req.user.id, updates, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!user) {
     throw new ApiError(HTTP_STATUS.NOT_FOUND, 'User account not found.');
   }
-
-  // Only update allowed fields
-  if (name && name.trim()) {
-    user.name = name.trim();
-  }
-
-  await user.save();
 
   logger.info(`Profile updated for user: ${user.email}`);
 

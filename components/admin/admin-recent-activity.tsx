@@ -22,10 +22,10 @@ export function AdminRecentActivity({ items }: AdminRecentActivityProps) {
   }
 
   return (
-    <section className="rounded-2xl border border-border/50 bg-card p-6">
+    <section className="rounded-[17px] border border-border bg-card p-6">
       <div className="mb-5 flex items-center gap-2">
         <Activity className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-semibold text-card-foreground">Recent Activity</h2>
+        <h2 className="font-display text-lg font-semibold text-card-foreground">Recent Activity</h2>
       </div>
 
       <div className="space-y-4">

@@ -80,6 +80,7 @@ export interface InterviewerProfile {
   userId: { _id: string; name: string; email?: string; profilePicture?: string } | string;
   bio?: string;
   linkedinUrl?: string;
+  yearsOfExperience?: number;
   domains: string[];
   skills: string[];
   roles: string[];
@@ -219,18 +220,22 @@ export const liveInterviewApi = {
       };
     }>('/api/vetting/start', { method: 'POST' }),
 
-  sendVettingMessage: (message: string) =>
+  sendVettingMessage: (message: string, opts: { wasPasted?: boolean; skipped?: boolean } = {}) =>
     jsonFetch<{
       data: {
         isCompleted: boolean;
         vettingStatus: 'interviewing' | 'approved' | 'rejected';
         vettingScore?: number;
         isVerified?: boolean;
-        evaluationFeedback?: string;
+        summary?: string;
+        mistakes?: string[];
+        strengths?: string[];
+        aiGeneratedSuspected?: boolean;
+        audit?: { reason: string; count?: number; points: number }[];
         vettingConversation: { role: 'user' | 'assistant'; content: string; timestamp: string }[];
       };
     }>('/api/vetting/message', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, wasPasted: opts.wasPasted ?? false, skipped: opts.skipped ?? false }),
     }),
 };

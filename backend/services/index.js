@@ -34,7 +34,7 @@ const logger = require('../config/logger');
  * @param {string} [params.filename]   – Original filename
  * @returns {Promise<Object>}
  */
-async function analyzeAnswer({ text, reference, audioUrl, audioBuffer, videoUrl, videoBuffer, filename }) {
+async function analyzeAnswer({ text, reference, question, audioUrl, audioBuffer, videoUrl, videoBuffer, filename }) {
   const results = {
     nlp: null,
     vocal: null,
@@ -45,7 +45,7 @@ async function analyzeAnswer({ text, reference, audioUrl, audioBuffer, videoUrl,
 
   // Run analyses concurrently. Facial analysis is conditional on actual video input.
   const jobs = [
-    nlpService.analyzeContent({ text, reference }),
+    nlpService.analyzeContent({ text, reference, question }),
     vocalService.analyzeVocal({ audioUrl, audioBuffer, filename }),
   ];
   const hasVideo = Boolean(videoBuffer || videoUrl);

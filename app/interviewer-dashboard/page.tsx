@@ -21,7 +21,6 @@ import {
   Clock,
   CheckCircle2,
   Sparkles,
-  ArrowRight,
   ArrowLeft,
   XCircle,
   Video,
@@ -37,6 +36,7 @@ import { InterviewerLayout, type InterviewerTab } from "@/components/interviewer
 import { InterviewerStatsCards } from "@/components/interviewer/interviewer-stats-cards"
 import { InterviewerBookingsList } from "@/components/interviewer/interviewer-bookings-list"
 import { InterviewerProfileForm } from "@/components/interviewer/interviewer-profile-form"
+import { InterviewerSettings } from "@/components/interviewer/interviewer-settings"
 
 // ── Tab meta ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ const TAB_TITLES: Record<InterviewerTab, { title: string; subtitle: string }> = 
   bookings: { title: "My Bookings", subtitle: "All interview sessions assigned to you" },
   profile:  { title: "My Profile",  subtitle: "Edit your public interviewer profile" },
   history:  { title: "History",     subtitle: "Past completed interview sessions" },
+  settings: { title: "Settings",    subtitle: "Manage your account preferences and settings" },
 }
 
 // ── Computed stats ────────────────────────────────────────────────────────────
@@ -180,10 +181,11 @@ export default function InterviewerDashboardPage() {
         {activeTab === "bookings" && (
           <BookingsTab bookings={bookings} profile={profile} onRefresh={loadBookings} onNavigate={setActiveTab} />
         )}
-        {activeTab === "profile" && <ProfileTab onNavigate={setActiveTab} />}
+        {activeTab === "profile" && <ProfileTab profile={profile} onNavigate={setActiveTab} onRefresh={loadBookings} />}
         {activeTab === "history" && (
           <HistoryTab bookings={bookings} profile={profile} onRefresh={loadBookings} onNavigate={setActiveTab} />
         )}
+        {activeTab === "settings" && <SettingsTab onNavigate={setActiveTab} />}
       </motion.div>
     </InterviewerLayout>
   )
@@ -263,16 +265,17 @@ function OverviewTab({
           </Button>
         </motion.div>
       ) : (
-        profile && !profile.isVerified && (
+        /* [VETTING QUARANTINED] vetting banner disabled for testing — remove `&& false` to restore */
+        profile && !profile.isVerified && false && (
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            className="rounded-2xl border border-accent/30 bg-accent/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-purple-400 shrink-0 mt-0.5" />
+              <Sparkles className="h-5 w-5 text-accent shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-purple-400">AI Certification Vetting Required</h4>
+                <h4 className="font-semibold text-accent">AI Certification Vetting Required</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   You must pass our automated AI Vetting chat before you can receive mock interview bookings or join meeting rooms.
                 </p>
@@ -281,7 +284,7 @@ function OverviewTab({
             <Button
               asChild
               size="sm"
-              className="bg-purple-600 hover:bg-purple-500 text-white shrink-0 self-start sm:self-center"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground shrink-0 self-start sm:self-center"
             >
               <Link href="/live-interview/become-interviewer/vetting">Start AI Vetting</Link>
             </Button>
@@ -301,21 +304,15 @@ function OverviewTab({
       <div className="grid gap-6 xl:grid-cols-2">
         {/* Pending approval */}
         {pendingApproval.length > 0 && (
-          <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 xl:col-span-2">
+          <section className="rounded-2xl border border-warning/30 bg-warning/5 p-6 xl:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-amber-400" />
+                <CalendarDays className="h-5 w-5 text-warning" />
                 <h3 className="font-semibold text-card-foreground">Pending Approval ({pendingApproval.length})</h3>
-                <span className="animate-pulse h-2 w-2 rounded-full bg-amber-400" />
+                <span className="animate-pulse h-2 w-2 rounded-full bg-warning" />
               </div>
-              <button
-                onClick={() => onNavigate("bookings")}
-                className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-              >
-                View all <ArrowRight className="h-3 w-3" />
-              </button>
             </div>
-            <p className="text-xs text-amber-400/80 mb-3">These applicants are waiting for your response. Please accept or decline.</p>
+            <p className="text-xs text-warning/80 mb-3">These applicants are waiting for your response. Please accept or decline.</p>
             <div className="space-y-3">
               {pendingApproval.map((b) => (
                 <MiniBookingRow key={b._id} booking={b} onRefresh={onRefresh} />
@@ -331,12 +328,6 @@ function OverviewTab({
               <CalendarDays className="h-5 w-5 text-accent" />
               <h3 className="font-semibold text-card-foreground">Upcoming Sessions</h3>
             </div>
-            <button
-              onClick={() => onNavigate("bookings")}
-              className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </button>
           </div>
 
           {upcoming.length === 0 ? (
@@ -360,12 +351,6 @@ function OverviewTab({
               <Clock className="h-5 w-5 text-warning" />
               <h3 className="font-semibold text-card-foreground">Awaiting Your Feedback</h3>
             </div>
-            <button
-              onClick={() => onNavigate("bookings")}
-              className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </button>
           </div>
 
           {pendingFeedback.length === 0 ? (
@@ -383,40 +368,6 @@ function OverviewTab({
           )}
         </section>
       </div>
-
-      {/* Quick actions */}
-      <section className="rounded-2xl border border-border/50 bg-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-accent" />
-          <h3 className="font-semibold text-card-foreground">Quick Actions</h3>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => onNavigate("profile")}
-            className="flex items-center gap-2 rounded-xl border border-border/50 bg-secondary/40 px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary transition-colors"
-          >
-            Update Profile
-          </button>
-          <button
-            onClick={() => onNavigate("bookings")}
-            className="flex items-center gap-2 rounded-xl border border-border/50 bg-secondary/40 px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary transition-colors"
-          >
-            View All Bookings
-          </button>
-          <button
-            onClick={() => onNavigate("history")}
-            className="flex items-center gap-2 rounded-xl border border-border/50 bg-secondary/40 px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary transition-colors"
-          >
-            Past Sessions
-          </button>
-          <Link
-            href="/live-interview/become-interviewer"
-            className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent hover:bg-accent/20 transition-colors"
-          >
-            Edit Full Profile →
-          </Link>
-        </div>
-      </section>
     </div>
   )
 }
@@ -434,7 +385,9 @@ function BookingsTab({
   onRefresh: () => void
   onNavigate: (tab: InterviewerTab) => void
 }) {
-  const isVerified = profile?.isVerified ?? false
+  // [VETTING QUARANTINED] forced true for testing — restore the line below on request
+  // const isVerified = profile?.isVerified ?? false
+  const isVerified = true
 
   if (!isVerified) {
     return (
@@ -448,13 +401,13 @@ function BookingsTab({
             <span>Back to Dashboard</span>
           </button>
         </div>
-        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-8 text-center space-y-4 max-w-xl mx-auto">
-          <Sparkles className="mx-auto h-12 w-12 text-purple-400 animate-pulse" />
+        <div className="rounded-2xl border border-accent/30 bg-accent/5 p-8 text-center space-y-4 max-w-xl mx-auto">
+          <Sparkles className="mx-auto h-12 w-12 text-accent animate-pulse" />
           <h3 className="text-lg font-bold text-card-foreground">AI Certification Required</h3>
           <p className="text-sm text-muted-foreground">
             You must pass our automated AI Vetting chat before you can view your assigned bookings or join interview rooms.
           </p>
-          <Button asChild className="bg-purple-600 hover:bg-purple-500 text-white gap-2 px-6 py-5 rounded-xl font-semibold">
+          <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 px-6 py-5 rounded-xl font-semibold">
             <Link href="/live-interview/become-interviewer/vetting">Start AI Vetting</Link>
           </Button>
         </div>
@@ -487,13 +440,13 @@ function BookingsTab({
 
       <div className="space-y-8">
         {pendingApproval.length > 0 && (
-          <SectionGroup title="Pending Approval" count={pendingApproval.length} color="text-amber-400">
+          <SectionGroup title="Pending Approval" count={pendingApproval.length} color="text-warning">
             <InterviewerBookingsList bookings={pendingApproval} onRefresh={onRefresh} />
           </SectionGroup>
         )}
 
         {active.length > 0 && (
-          <SectionGroup title="Active / Upcoming" count={active.length} color="text-blue-400">
+          <SectionGroup title="Active / Upcoming" count={active.length} color="text-info">
             <InterviewerBookingsList bookings={active} onRefresh={onRefresh} />
           </SectionGroup>
         )}
@@ -524,7 +477,15 @@ function BookingsTab({
 
 // ── Profile tab ───────────────────────────────────────────────────────────────
 
-function ProfileTab({ onNavigate }: { onNavigate: (tab: InterviewerTab) => void }) {
+function ProfileTab({
+  profile,
+  onNavigate,
+  onRefresh,
+}: {
+  profile: InterviewerProfile | null
+  onNavigate: (tab: InterviewerTab) => void
+  onRefresh: () => void
+}) {
   return (
     <div className="space-y-6">
       <div className="flex justify-start">
@@ -536,7 +497,33 @@ function ProfileTab({ onNavigate }: { onNavigate: (tab: InterviewerTab) => void 
           <span>Back to Dashboard</span>
         </button>
       </div>
-      <InterviewerProfileForm />
+      <InterviewerProfileForm
+        initialProfile={profile}
+        onSaved={() => {
+          toast.success("Profile saved")
+          onRefresh()          // refresh profile/bookings so the overview reflects the new profile
+          onNavigate("overview")  // send the interviewer back to their dashboard
+        }}
+      />
+    </div>
+  )
+}
+
+// ── Settings tab ──────────────────────────────────────────────────────────────
+
+function SettingsTab({ onNavigate }: { onNavigate: (tab: InterviewerTab) => void }) {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-start">
+        <button
+          onClick={() => onNavigate("overview")}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/50 bg-secondary/20 rounded-lg px-2.5 py-1.5"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Back to Dashboard</span>
+        </button>
+      </div>
+      <InterviewerSettings />
     </div>
   )
 }
@@ -554,7 +541,9 @@ function HistoryTab({
   onRefresh: () => void
   onNavigate: (tab: InterviewerTab) => void
 }) {
-  const isVerified = profile?.isVerified ?? false
+  // [VETTING QUARANTINED] forced true for testing — restore the line below on request
+  // const isVerified = profile?.isVerified ?? false
+  const isVerified = true
 
   if (!isVerified) {
     return (
@@ -568,13 +557,13 @@ function HistoryTab({
             <span>Back to Dashboard</span>
           </button>
         </div>
-        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-8 text-center space-y-4 max-w-xl mx-auto">
-          <Sparkles className="mx-auto h-12 w-12 text-purple-400 animate-pulse" />
+        <div className="rounded-2xl border border-accent/30 bg-accent/5 p-8 text-center space-y-4 max-w-xl mx-auto">
+          <Sparkles className="mx-auto h-12 w-12 text-accent animate-pulse" />
           <h3 className="text-lg font-bold text-card-foreground">AI Certification Required</h3>
           <p className="text-sm text-muted-foreground">
             You must pass our automated AI Vetting chat before you can view your interview history.
           </p>
-          <Button asChild className="bg-purple-600 hover:bg-purple-500 text-white gap-2 px-6 py-5 rounded-xl font-semibold">
+          <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2 px-6 py-5 rounded-xl font-semibold">
             <Link href="/live-interview/become-interviewer/vetting">Start AI Vetting</Link>
           </Button>
         </div>
@@ -685,7 +674,7 @@ function MiniBookingRow({
                 setBusy(false)
               }
             }}
-            className="h-8 bg-emerald-500 hover:bg-emerald-400 text-white font-medium text-xs px-3 rounded-lg flex items-center gap-1"
+            className="h-8 bg-success hover:bg-success/90 text-success-foreground font-medium text-xs px-3 rounded-lg flex items-center gap-1"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             Accept
@@ -705,7 +694,7 @@ function MiniBookingRow({
                 setBusy(false)
               }
             }}
-            className="h-8 bg-rose-500 hover:bg-rose-400 text-white font-medium text-xs px-3 rounded-lg flex items-center gap-1"
+            className="h-8 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium text-xs px-3 rounded-lg flex items-center gap-1"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
             Decline
@@ -725,7 +714,7 @@ function MiniBookingRow({
           Pending
         </span>
       ) : (
-        <span className="shrink-0 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-xs font-medium text-blue-400 capitalize">
+        <span className="shrink-0 rounded-full bg-info/15 border border-info/30 px-2.5 py-0.5 text-xs font-medium text-info capitalize">
           {booking.status.replace(/_/g, " ")}
         </span>
       )}
@@ -743,8 +732,8 @@ function EmptyCard({
   success?: boolean
 }) {
   return (
-    <div className={`rounded-xl p-6 text-center ${success ? "bg-emerald-500/5 border border-emerald-500/10" : "bg-secondary/20 border border-border/30"}`}>
-      <Icon className={`mx-auto h-8 w-8 ${success ? "text-emerald-400/40" : "text-muted-foreground/30"}`} />
+    <div className={`rounded-xl p-6 text-center ${success ? "bg-success/5 border border-success/10" : "bg-secondary/20 border border-border/30"}`}>
+      <Icon className={`mx-auto h-8 w-8 ${success ? "text-success/40" : "text-muted-foreground/30"}`} />
       <p className="mt-2 text-sm text-muted-foreground">{message}</p>
     </div>
   )

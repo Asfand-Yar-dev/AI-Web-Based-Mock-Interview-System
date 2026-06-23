@@ -24,12 +24,12 @@ interface RecentSessionsProps {
 function getStatusIcon(status: string) {
   switch (status) {
     case "completed":
-      return <CheckCircle className="h-5 w-5 text-green-500" />
+      return <CheckCircle className="h-5 w-5 text-success" />
     case "in-progress":
     case "ongoing":
-      return <Clock className="h-5 w-5 text-yellow-500" />
+      return <Clock className="h-5 w-5 text-warning" />
     case "cancelled":
-      return <XCircle className="h-5 w-5 text-red-500" />
+      return <XCircle className="h-5 w-5 text-destructive" />
     default:
       return <Clock className="h-5 w-5 text-muted-foreground" />
   }
@@ -54,21 +54,21 @@ function getStatusLabel(status: string) {
 function getStatusBadgeClass(status: string) {
   switch (status) {
     case "completed":
-      return "bg-green-500/10 text-green-500 border-green-500/20"
+      return "bg-success/10 text-success border-success/20"
     case "in-progress":
     case "ongoing":
-      return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+      return "bg-warning/10 text-warning border-warning/20"
     case "cancelled":
-      return "bg-red-500/10 text-red-500 border-red-500/20"
+      return "bg-destructive/10 text-destructive border-destructive/20"
     default:
-      return "bg-muted text-muted-foreground border-border/50"
+      return "bg-muted text-muted-foreground border-border"
   }
 }
 
 function getScoreColor(score: number) {
-  if (score >= 66) return { stroke: "#22c55e", text: "text-green-500" }
-  if (score >= 41) return { stroke: "#eab308", text: "text-yellow-500" }
-  return { stroke: "#ef4444", text: "text-red-500" }
+  if (score >= 66) return { stroke: "var(--success)", text: "text-success" }
+  if (score >= 41) return { stroke: "var(--warning)", text: "text-warning" }
+  return { stroke: "var(--destructive)", text: "text-destructive" }
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -96,7 +96,7 @@ function ScoreRing({ score }: { score: number }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={stroke}
+          style={{ stroke }}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -118,11 +118,11 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.4 }}
-      className="rounded-2xl border border-border/50 bg-card overflow-hidden"
+      className="rounded-[17px] border border-border bg-card overflow-hidden"
     >
-      <div className="flex items-center justify-between border-b border-border/50 p-6">
+      <div className="flex items-center justify-between border-b border-border p-6">
         <div>
-          <h2 className="text-lg font-semibold text-card-foreground">Recent Sessions</h2>
+          <h2 className="font-display text-lg font-semibold text-card-foreground">Recent sessions</h2>
           <p className="text-sm text-muted-foreground">Your latest practice interviews</p>
         </div>
         <Link href="/dashboard/history">

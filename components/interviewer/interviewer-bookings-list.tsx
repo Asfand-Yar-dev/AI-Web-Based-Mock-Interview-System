@@ -29,7 +29,7 @@ import { buildGoogleCalendarUrl } from "@/lib/googleCalendar"
 // ── Score badge ───────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400"
+  const color = score >= 80 ? "text-success" : score >= 50 ? "text-warning" : "text-destructive"
   return (
     <span className={`text-lg font-bold tabular-nums ${color}`}>
       {score}<span className="text-xs font-normal text-muted-foreground">/100</span>
@@ -67,7 +67,7 @@ function AddToCalendarButton({ booking }: { booking: LiveBooking }) {
   return (
     <button
       onClick={() => window.open(buildGoogleCalendarUrl(eventParams), "_blank", "noopener")}
-      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/60 hover:-translate-y-0.5 transition-all duration-200"
+      className="inline-flex items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success hover:bg-success/20 hover:border-success/60 hover:-translate-y-0.5 transition-all duration-200"
       title="Opens Google Calendar with the event pre-filled — just click Save"
     >
       <CalendarPlus className="h-4 w-4" />
@@ -107,7 +107,7 @@ function ApprovalPanel({
 
   if (done) {
     return (
-      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+      <div className="flex items-center gap-2 rounded-xl bg-success/10 border border-success/20 px-4 py-3 text-sm text-success">
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         Response sent!
       </div>
@@ -122,7 +122,7 @@ function ApprovalPanel({
       className="mt-4 space-y-3 overflow-hidden border-t border-border/40 pt-4"
     >
       <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-        <Bell className="h-3.5 w-3.5 text-amber-400" />
+        <Bell className="h-3.5 w-3.5 text-warning" />
         New booking request — please accept or decline
       </p>
 
@@ -155,7 +155,7 @@ function ApprovalPanel({
             size="sm"
             onClick={() => respond("accept")}
             disabled={busy}
-            className="gap-2 bg-emerald-500 text-white hover:bg-emerald-400"
+            className="gap-2 bg-success text-white hover:bg-success"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             Accept
@@ -167,7 +167,7 @@ function ApprovalPanel({
               size="sm"
               onClick={() => respond("reject")}
               disabled={busy}
-              className="gap-2 bg-red-500 text-white hover:bg-red-400"
+              className="gap-2 bg-destructive text-white hover:bg-destructive"
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
               Confirm Decline
@@ -182,7 +182,7 @@ function ApprovalPanel({
         ) : (
           <button
             onClick={() => setAction("reject")}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
           >
             <XCircle className="h-3.5 w-3.5" />
             Decline
@@ -233,7 +233,7 @@ function FeedbackForm({
 
   if (submitted) {
     return (
-      <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+      <div className="flex items-center gap-2 rounded-xl bg-success/10 border border-success/20 px-4 py-3 text-sm text-success">
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         Feedback submitted successfully!
       </div>
@@ -383,11 +383,11 @@ function BookingCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl border p-5 transition-colors hover:border-border ${
+      className={`rounded-[17px] border p-5 transition-colors hover:border-border ${
         isOverdue
-          ? "border-rose-500/50 hover:border-rose-500/70"
+          ? "border-destructive/50 hover:border-destructive/70"
           : isPendingApproval
-          ? "border-amber-500/40 bg-amber-500/5"
+          ? "border-warning/40 bg-warning/5"
           : "border-border/50 bg-card"
       }`}
       style={isOverdue ? { backgroundColor: "rgba(244,63,94,0.08)" } : undefined}
@@ -477,9 +477,9 @@ function BookingCard({
           )}
 
           {feedbackDone && (
-            <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span className="text-sm text-emerald-400 font-medium">Feedback submitted</span>
+            <div className="flex items-center gap-2 rounded-xl bg-success/10 border border-success/20 px-4 py-2">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <span className="text-sm text-success font-medium">Feedback submitted</span>
               {booking.humanScore !== undefined && <ScoreBadge score={booking.humanScore} />}
             </div>
           )}
@@ -545,7 +545,7 @@ export function InterviewerBookingsList({
 
   if (filtered.length === 0) {
     return (
-      <div className="rounded-2xl border border-border/50 bg-card p-10 text-center">
+      <div className="rounded-[17px] border border-border bg-card p-10 text-center">
         <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground/40" />
         <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
       </div>

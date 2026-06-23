@@ -11,6 +11,7 @@ const Interviewer = require('../models/Interviewer');
 const LiveBooking = require('../models/LiveBooking');
 const logger = require('../config/logger');
 const { LIVE_BOOKING_STATUS } = require('../config/constants');
+const { escapeRegex: _escapeRegex, exactCI: _exactCI } = require('../utils/regex');
 
 /**
  * Check whether an interviewer is generally available at the given Date.
@@ -35,10 +36,10 @@ function _isWithinAvailability(interviewer, when) {
  * free at the requested time. Applies a "highest rating first" tie-break and
  * skips anyone who already has a confirmed booking at the same slot.
  *
- * Matching rules (all case-insensitive, all optional / degraded-gracefully):
- *  - domain  : interviewer.domains must contain the requested domain (case-insensitive)
- *  - skills  : interviewer.skills must overlap with requested skills  (case-insensitive, at least 1)
- *  - role    : interviewer.roles  must contain the requested role     (case-insensitive)
+ * Matching rules (all exact + case-insensitive, all optional / degraded-gracefully):
+ *  - domain  : interviewer.domains must contain the requested domain (exact, case-insensitive)
+ *  - skills  : interviewer.skills must overlap with requested skills  (exact, case-insensitive, at least 1)
+ *  - role    : interviewer.roles  must contain the requested role     (exact, case-insensitive; fuzzy keyword fallback)
  */
 function getRoleKeywords(searchRole) {
   const normalized = searchRole.toLowerCase().trim();
@@ -90,25 +91,33 @@ function getRoleKeywords(searchRole) {
  *
  * @returns {Promise<Interviewer|null>}
  */
-async function findMatchingInterviewer({ role, skills = [], domain, scheduledTime }) {
+async function findMatchingInterviewer({ role, skills = [], domain, scheduledTime, excludeInterviewerIds = [] }) {
   const slot = new Date(scheduledTime);
 
+  // Interviewers to skip entirely (e.g. ones who already declined this booking).
+  const excludeClause = excludeInterviewerIds.length
+    ? { _id: { $nin: excludeInterviewerIds } }
+    : {};
+
   // Build a flexible filter — all conditions are case-insensitive regex
-  const filter = { isAcceptingBookings: { $ne: false }, isVerified: true };
+  // [VETTING QUARANTINED] `isVerified: true` removed so unverified interviewers
+  // can still be matched while vetting is disabled. Restore on request.
+  const filter = { isAcceptingBookings: { $ne: false } /*, isVerified: true */, ...excludeClause };
 
   if (domain) {
-    filter.domains = domain.trim().toLowerCase();
+    // Anchored, case-insensitive exact match — robust even if the stored
+    // domain wasn't lowercased at save time (e.g. edited directly in the DB).
+    filter.domains = _exactCI(domain);
   }
 
   if (role && role.trim()) {
-    const keywords = getRoleKeywords(role);
-    const pattern = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    filter.roles = { $elemMatch: { $regex: new RegExp(pattern, 'i') } };
+    // Exact, case-insensitive match against the interviewer's declared roles.
+    filter.roles = { $in: [_exactCI(role)] };
   }
 
   if (skills.length) {
-    const skillRegexes = skills.map(s => new RegExp(s.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-    filter.skills = { $elemMatch: { $in: skillRegexes } };
+    // Overlap on at least one skill, each matched exactly & case-insensitively.
+    filter.skills = { $in: skills.map(_exactCI) };
   }
 
   logger.info(`[booking] matching filter: ${JSON.stringify({ domain, role, skills })}`);
@@ -125,11 +134,28 @@ async function findMatchingInterviewer({ role, skills = [], domain, scheduledTim
     candidates = await Interviewer.find(relaxed).sort({ rating: -1, totalSessions: 1 }).lean();
   }
 
-  // Fallback 2: drop role filter too
+  // Fallback 2: relax the exact-role match to fuzzy keyword matching
+  // (e.g. "Senior Frontend Developer" → frontend / ui / web). Skills dropped.
+  if (!candidates.length && role && role.trim()) {
+    logger.info('[booking] no exact role match — retrying with keyword role match');
+    const keywords = getRoleKeywords(role);
+    const pattern = keywords.map(_escapeRegex).join('|');
+    // [VETTING QUARANTINED] `isVerified: true` removed — restore on request.
+    const relaxed = {
+      isAcceptingBookings: { $ne: false } /*, isVerified: true */,
+      roles: { $elemMatch: { $regex: new RegExp(pattern, 'i') } },
+      ...excludeClause,
+    };
+    if (domain) relaxed.domains = _exactCI(domain);
+    candidates = await Interviewer.find(relaxed).sort({ rating: -1, totalSessions: 1 }).lean();
+  }
+
+  // Fallback 3: drop the role filter entirely — match anyone in the domain.
   if (!candidates.length && role) {
     logger.info('[booking] no match with role — retrying without role filter');
-    const relaxed = { isAcceptingBookings: { $ne: false }, isVerified: true };
-    if (domain) relaxed.domains = domain.trim().toLowerCase();
+    // [VETTING QUARANTINED] `isVerified: true` removed — restore on request.
+    const relaxed = { isAcceptingBookings: { $ne: false } /*, isVerified: true */, ...excludeClause };
+    if (domain) relaxed.domains = _exactCI(domain);
     candidates = await Interviewer.find(relaxed).sort({ rating: -1, totalSessions: 1 }).lean();
   }
 

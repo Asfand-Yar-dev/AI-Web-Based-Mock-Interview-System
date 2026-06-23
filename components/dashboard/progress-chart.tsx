@@ -38,13 +38,13 @@ function TrendBadge({ sessions }: { sessions: SessionPoint[] }) {
   }
   if (delta > 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium">
+      <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
         <TrendingUp className="h-3 w-3" /> +{delta} pts
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-red-400 font-medium">
+    <span className="inline-flex items-center gap-1 text-xs text-destructive font-medium">
       <TrendingDown className="h-3 w-3" /> {delta} pts
     </span>
   )

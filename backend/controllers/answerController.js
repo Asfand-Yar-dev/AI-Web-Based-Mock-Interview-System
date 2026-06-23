@@ -369,6 +369,7 @@ async function processWithAI(answerId, audioFilePath, videoFilePath) {
             analysis = await aiServices.analyzeAnswer({
                 text,
                 reference,
+                question: questionText,
                 audioUrl: audioFilePath,
                 filename: answer.audioFileName,
                 videoUrl: videoFilePath,

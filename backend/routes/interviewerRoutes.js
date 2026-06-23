@@ -14,6 +14,7 @@ const User = require('../models/User');
 const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler, ApiError } = require('../middleware/errorHandler');
 const { HTTP_STATUS, USER_ROLES } = require('../config/constants');
+const { exactCI, containsCI } = require('../utils/regex');
 
 const router = express.Router();
 
@@ -22,17 +23,21 @@ router.get('/', asyncHandler(async (req, res) => {
   const { domain, skill, role } = req.query;
 
   // Use $ne: false so interviewers who never explicitly set the flag still appear
-  const filter = { isAcceptingBookings: { $ne: false }, isVerified: true };
+  // [VETTING QUARANTINED] `isVerified: true` removed so unverified interviewers
+  // still appear in public search while vetting is disabled. Restore on request.
+  const filter = { isAcceptingBookings: { $ne: false } /*, isVerified: true */ };
 
+  // All matching is case-insensitive and regex-escaped (so values like "C++"
+  // or "Node.js" can't break the query). Domain is an exact match; skill/role
+  // allow substring search for a friendlier discovery experience.
   if (domain) {
-    // domains is an array field — use $elemMatch with case-insensitive regex
-    filter.domains = { $elemMatch: { $regex: new RegExp(`^${String(domain).trim()}$`, 'i') } };
+    filter.domains = exactCI(domain);
   }
   if (skill) {
-    filter.skills = { $elemMatch: { $regex: new RegExp(String(skill).trim(), 'i') } };
+    filter.skills = { $elemMatch: { $regex: containsCI(skill) } };
   }
   if (role) {
-    filter.roles = { $elemMatch: { $regex: new RegExp(String(role).trim(), 'i') } };
+    filter.roles = { $elemMatch: { $regex: containsCI(role) } };
   }
 
   const list = await Interviewer.find(filter)
@@ -50,7 +55,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
 }));
 
 router.post('/', authenticate, asyncHandler(async (req, res) => {
-  const { bio, domains, skills, roles, hourlyRate, availability, linkedinUrl, isAcceptingBookings } = req.body;
+  const { bio, domains, skills, roles, hourlyRate, availability, linkedinUrl, isAcceptingBookings, yearsOfExperience } = req.body;
   if (typeof hourlyRate !== 'number' || hourlyRate < 0) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'hourlyRate is required and must be ≥ 0');
   }
@@ -62,6 +67,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
     roles,
     hourlyRate,
     linkedinUrl,
+    yearsOfExperience,
     // Always default to accepting bookings unless explicitly set to false
     isAcceptingBookings: isAcceptingBookings !== false,
   };
@@ -87,7 +93,7 @@ router.post('/', authenticate, asyncHandler(async (req, res) => {
 // interviewers whose JWT still carries role:'user' until they re-login.
 router.patch('/me', authenticate, asyncHandler(async (req, res) => {
   const updates = {};
-  const allowedFields = ['bio', 'domains', 'skills', 'roles', 'hourlyRate', 'availability', 'isAcceptingBookings'];
+  const allowedFields = ['bio', 'domains', 'skills', 'roles', 'hourlyRate', 'availability', 'isAcceptingBookings', 'linkedinUrl', 'yearsOfExperience'];
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) {
       updates[field] = req.body[field];

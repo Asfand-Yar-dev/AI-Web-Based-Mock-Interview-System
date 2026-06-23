@@ -26,9 +26,11 @@ const USE_REAL_AI = !['false', '0', 'no'].includes(
  * @param {Object} params
  * @param {string} params.text          – User's answer (or transcribed text)
  * @param {string} [params.reference]   – Expected/reference answer for comparison
+ * @param {string} [params.question]    – The question asked (lets the AI force a
+ *                                        score of 0 when the answer just repeats it)
  * @returns {Promise<Object>}           – { score, metrics, feedback }
  */
-async function analyzeContent({ text, reference = '' }) {
+async function analyzeContent({ text, reference = '', question = '' }) {
   if (!text || text.trim().length === 0) {
     return _emptyResult('No text provided for NLP analysis.');
   }
@@ -44,6 +46,7 @@ async function analyzeContent({ text, reference = '' }) {
         body: JSON.stringify({
           user_answer: text,
           reference_answer: reference,
+          question_text: question,
         }),
         signal: AbortSignal.timeout(30000), // 30-second timeout
       });

@@ -18,36 +18,36 @@ export function InterviewerStatsCards({
 }: InterviewerStatsCardsProps) {
   const cards = [
     {
-      label: "Total Bookings",
+      label: "Total bookings",
       value: totalBookings.toString(),
       description: "Assignments from the platform",
       icon: CalendarDays,
-      color: "text-chart-1",
-      bg: "bg-chart-1/10",
+      tint: "bg-accent/10 text-accent",
+      valueClass: "text-card-foreground",
     },
     {
-      label: "Completed Sessions",
+      label: "Completed",
       value: completedSessions.toString(),
       description: "Successfully finished interviews",
       icon: CheckCircle2,
-      color: "text-success",
-      bg: "bg-success/10",
+      tint: "bg-success/15 text-success",
+      valueClass: "text-card-foreground",
     },
     {
-      label: "Pending Feedback",
+      label: "Pending feedback",
       value: pendingFeedback.toString(),
       description: "Awaiting your written review",
       icon: Clock,
-      color: "text-warning",
-      bg: "bg-warning/10",
+      tint: "bg-warning/15 text-warning",
+      valueClass: "text-warning",
     },
     {
-      label: "Avg. Score Given",
-      value: averageScore !== null ? `${averageScore}/100` : "—",
+      label: "Avg. score given",
+      value: averageScore !== null ? `${averageScore}%` : "—",
       description: "Your average human score",
       icon: Star,
-      color: "text-chart-4",
-      bg: "bg-chart-4/10",
+      tint: "bg-accent/10 text-accent",
+      valueClass: "text-card-foreground",
     },
   ]
 
@@ -56,21 +56,19 @@ export function InterviewerStatsCards({
       {cards.map((card, i) => (
         <motion.div
           key={card.label}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: i * 0.07 }}
-          className="rounded-2xl border border-border/50 bg-card p-6 transition-all hover:border-border"
+          className="rounded-[16px] border border-border bg-card p-5 transition-colors hover:border-accent/40"
         >
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="mt-2 text-3xl font-bold text-card-foreground">{card.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground truncate">{card.description}</p>
-            </div>
-            <div className={`rounded-xl p-3 shrink-0 ${card.bg}`}>
-              <card.icon className={`h-5 w-5 ${card.color}`} />
+            <span className="text-[13px] text-muted-foreground">{card.label}</span>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${card.tint}`}>
+              <card.icon className="h-[15px] w-[15px]" />
             </div>
           </div>
+          <div className={`mt-3 font-display text-[30px] font-bold leading-none ${card.valueClass}`}>{card.value}</div>
+          <div className="mt-2 text-xs text-faint truncate">{card.description}</div>
         </motion.div>
       ))}
     </div>

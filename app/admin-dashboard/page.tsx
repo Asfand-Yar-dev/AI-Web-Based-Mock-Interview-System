@@ -13,10 +13,9 @@ import {
   ShieldCheck,
   Sparkles,
   Activity,
-  ArrowLeftRight,
+  LogOut,
 } from "lucide-react"
-import Link from "next/link"
-import { useRequireAuth } from "@/contexts/auth-context"
+import { useAuth, useRequireAuth } from "@/contexts/auth-context"
 import { AdminUsersTable } from "@/components/admin/admin-users-table"
 import { AdminRecentActivity } from "@/components/admin/admin-recent-activity"
 import { AdminSystemStatus } from "@/components/admin/admin-system-status"
@@ -145,6 +144,7 @@ function normalizeAdminData(payload: Partial<AdminDashboardData> | null | undefi
 
 export default function AdminPage() {
   const { isAuthenticated, isLoading, user } = useRequireAuth()
+  const { logout } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [data, setData] = useState<AdminDashboardData | null>(null)
@@ -155,6 +155,13 @@ export default function AdminPage() {
     user?.user_role ?? (user as { role?: string } | null)?.role ?? "",
   ).trim().toLowerCase()
   const isAdmin = normalizedRole === "admin"
+
+  const adminInitials = (user?.name || user?.email || "A")
+    .split(/\s+/)
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && !isAdmin) router.replace("/dashboard")
@@ -220,10 +227,13 @@ export default function AdminPage() {
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-border/50 bg-sidebar lg:flex">
           {/* Brand */}
           <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
               <Sparkles className="h-4 w-4 text-accent-foreground" />
             </div>
-            <p className="truncate text-sm font-semibold text-sidebar-foreground">Admin Dashboard</p>
+            <div className="min-w-0">
+              <p className="truncate font-display text-[15px] font-semibold leading-tight text-sidebar-foreground">Intervexa</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-accent">Admin</p>
+            </div>
           </div>
 
           {/* Nav */}
@@ -235,7 +245,7 @@ export default function AdminPage() {
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                   activeTab === tab.id
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    ? "bg-accent/10 text-accent"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                 )}
               >
@@ -243,25 +253,35 @@ export default function AdminPage() {
                 {tab.label}
               </button>
             ))}
-
-            <div className="mt-6 border-t border-sidebar-border pt-4 space-y-1">
-              <p className="px-3 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider mb-2">Switch Panel</p>
-              <Link
-                href="/dashboard"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors text-left text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground group"
-              >
-                <ArrowLeftRight className="h-4 w-4 text-accent shrink-0" />
-                <span className="flex-1">Candidate Dashboard</span>
-              </Link>
-            </div>
           </nav>
 
           {/* Footer */}
           <div className="border-t border-sidebar-border p-3">
-            <div className="mb-2 rounded-xl bg-sidebar-accent/40 px-3 py-2.5">
-              <p className="truncate text-xs font-medium text-sidebar-foreground">{user?.name || "Admin"}</p>
-              <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
+            <div className="mb-2 flex items-center gap-3 rounded-xl bg-sidebar-accent/40 px-3 py-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/20">
+                {user?.profilePicture ? (
+                  <img
+                    src={user.profilePicture}
+                    alt={user?.name || "Admin"}
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="text-xs font-semibold text-accent">{adminInitials}</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-sidebar-foreground">{user?.name || "Admin"}</p>
+                <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
+              </div>
             </div>
+            <button
+              onClick={logout}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              Sign Out
+            </button>
           </div>
         </aside>
 
@@ -270,7 +290,7 @@ export default function AdminPage() {
           {/* Top header */}
           <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-6 backdrop-blur-xl lg:px-8">
             <div>
-              <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+              <h1 className="font-display text-lg font-semibold text-foreground">{title}</h1>
               <p className="hidden text-xs text-muted-foreground sm:block">{subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -355,6 +375,12 @@ function OverviewTab({ data }: { data: AdminDashboardData }) {
 function UsersTab({ data }: { data: AdminDashboardData }) {
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-3xl font-bold text-foreground">Users</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Monitor registered accounts and their activity.
+        </p>
+      </div>
       <AdminUsersTable
         users={data.users
           .filter((u) => u.role !== "admin")
@@ -374,40 +400,42 @@ function UsersTab({ data }: { data: AdminDashboardData }) {
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
-// Explicit vivid palette — no CSS variables, no black
+// Brand-aligned chart palette (concrete hex — recharts/SVG can't read CSS vars).
+// Mirrors the emerald token set in globals.css for a cohesive look.
 const V = {
-  indigo:  "#6366f1",
-  violet:  "#8b5cf6",
-  pink:    "#ec4899",
-  amber:   "#f59e0b",
-  emerald: "#10b981",
-  blue:    "#3b82f6",
-  red:     "#ef4444",
-  teal:    "#14b8a6",
-  orange:  "#f97316",
-  cyan:    "#06b6d4",
+  accent:  "#2fe39e",
+  success: "#34d399",
+  warning: "#f5c451",
+  danger:  "#ff6b6b",
+  info:    "#56b6ff",
+  lime:    "#a3e635",
+  teal:    "#2dd4bf",
 }
+// Recharts neutral tokens (grid / ticks / labels)
+const GRID  = "rgba(120,210,170,0.14)"
+const TICK  = "#7c9488"
+const TRACK = "rgba(120,210,170,0.10)"
 
 const ROLE_COLORS: Record<string, string> = {
-  User:    V.indigo,
-  Admin:   V.violet,
-  Unknown: V.cyan,
+  User:    V.accent,
+  Admin:   V.info,
+  Unknown: V.teal,
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Completed: V.emerald,
-  Ongoing:   V.blue,
-  Pending:   V.amber,
-  Cancelled: V.red,
+  Completed: V.success,
+  Ongoing:   V.info,
+  Pending:   V.warning,
+  Cancelled: V.danger,
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy:   V.emerald,
-  Medium: V.amber,
-  Hard:   V.red,
+  Easy:   V.success,
+  Medium: V.warning,
+  Hard:   V.danger,
 }
 
-const TYPE_COLORS = [V.indigo, V.violet, V.pink, V.teal, V.orange, V.cyan]
+const TYPE_COLORS = [V.accent, V.info, V.success, V.lime, V.teal, V.warning]
 
 // Shared tooltip style — white bg, no black
 function ChartTip({ active, payload, label }: any) {
@@ -450,26 +478,26 @@ function ProBarChart({
   return (
     <ChartContainer config={cfg} className="h-[240px] w-full">
       <BarChart data={data} barCategoryGap="35%" margin={{ top: 18, right: 4, left: -16, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.6} />
+        <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" opacity={0.6} />
         <XAxis
           dataKey="name"
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 12, fill: "#94a3b8" }}
+          tick={{ fontSize: 12, fill: TICK }}
         />
         <YAxis
           allowDecimals={false}
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 12, fill: "#94a3b8" }}
+          tick={{ fontSize: 12, fill: TICK }}
           width={28}
         />
-        <Tooltip content={<ChartTip />} cursor={{ fill: "#f1f5f9", opacity: 0.6 }} />
+        <Tooltip content={<ChartTip />} cursor={{ fill: TRACK, opacity: 0.6 }} />
         <Bar dataKey="value" radius={[6, 6, 0, 0]}>
           <LabelList
             dataKey="value"
             position="top"
-            style={{ fontSize: 11, fontWeight: 600, fill: "#64748b" }}
+            style={{ fontSize: 11, fontWeight: 600, fill: TICK }}
           />
           {data.map((entry, i) => (
             <Cell
@@ -500,28 +528,28 @@ function HorizontalBarChart({
         barCategoryGap="30%"
         margin={{ top: 0, right: 40, left: 8, bottom: 0 }}
       >
-        <CartesianGrid horizontal={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.6} />
+        <CartesianGrid horizontal={false} stroke={GRID} strokeDasharray="3 3" opacity={0.6} />
         <XAxis
           type="number"
           allowDecimals={false}
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 12, fill: "#94a3b8" }}
+          tick={{ fontSize: 12, fill: TICK }}
         />
         <YAxis
           type="category"
           dataKey="name"
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 12, fill: "#94a3b8" }}
+          tick={{ fontSize: 12, fill: TICK }}
           width={72}
         />
-        <Tooltip content={<ChartTip />} cursor={{ fill: "#f1f5f9", opacity: 0.6 }} />
+        <Tooltip content={<ChartTip />} cursor={{ fill: TRACK, opacity: 0.6 }} />
         <Bar dataKey="value" radius={[0, 6, 6, 0]}>
           <LabelList
             dataKey="value"
             position="right"
-            style={{ fontSize: 11, fontWeight: 600, fill: "#64748b" }}
+            style={{ fontSize: 11, fontWeight: 600, fill: TICK }}
           />
           {data.map((entry, i) => (
             <Cell
@@ -578,7 +606,7 @@ function DonutChart({
       </ChartContainer>
       {/* Center total overlay */}
       <div className="-mt-[132px] flex flex-col items-center justify-center pb-[68px] pointer-events-none">
-        <span className="text-2xl font-bold text-card-foreground">{total}</span>
+        <span className="font-display text-2xl font-bold text-card-foreground">{total}</span>
         <span className="text-xs text-muted-foreground">Total</span>
       </div>
       <ColorLegend items={legendItems} />
@@ -606,25 +634,25 @@ function AnalyticsTab({ data }: { data: AdminDashboardData }) {
       label: "Avg Platform Score",
       value: `${fb.averageFeedbackScore}%`,
       sub: "Across all completed sessions",
-      color: "var(--chart-1)",
+      color: "var(--accent)",
     },
     {
       label: "Positive Session Rate",
       value: `${fb.positiveFeedbackRate}%`,
       sub: "Sessions scored ≥ 80%",
-      color: "var(--chart-3)",
+      color: "var(--success)",
     },
     {
       label: "Low Score Alerts",
       value: fb.lowFeedbackAlerts,
       sub: "Sessions scored below 50%",
-      color: "var(--chart-2)",
+      color: "var(--info)",
     },
     {
       label: "In Interview Now",
       value: data.interviewee.usersInInterview,
       sub: "Users in an active session",
-      color: "var(--chart-4)",
+      color: "var(--warning)",
     },
   ]
 
@@ -635,12 +663,12 @@ function AnalyticsTab({ data }: { data: AdminDashboardData }) {
         {kpis.map((k) => (
           <div
             key={k.label}
-            className="rounded-2xl border border-border/50 bg-card p-5"
+            className="rounded-[16px] border border-border bg-card p-5"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{k.label}</p>
-                <p className="mt-2 text-3xl font-bold" style={{ color: k.color }}>{k.value}</p>
+                <p className="mt-2 font-display text-3xl font-bold" style={{ color: k.color }}>{k.value}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{k.sub}</p>
               </div>
               {/* hex-alpha bg works in both light & dark mode */}
@@ -699,7 +727,7 @@ function FeedbackTab({ data }: { data: AdminDashboardData }) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border/50 bg-card p-6">
+      <section className="rounded-[17px] border border-border bg-card p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-accent" />
@@ -709,7 +737,7 @@ function FeedbackTab({ data }: { data: AdminDashboardData }) {
             </div>
           </div>
           {fb.recentFlaggedSessions.length > 0 && (
-            <span className="shrink-0 rounded-full bg-red-50 px-3 py-0.5 text-xs font-semibold text-red-500">
+            <span className="shrink-0 rounded-full bg-destructive/10 px-3 py-0.5 text-xs font-semibold text-destructive">
               {fb.recentFlaggedSessions.length} flagged
             </span>
           )}
@@ -754,7 +782,7 @@ function SecurityTab({ data }: { data: AdminDashboardData }) {
         <MetricCard label="Ongoing Sessions"  value={sec.activeSessions} />
       </div>
 
-      <section className="rounded-2xl border border-border/50 bg-card p-6">
+      <section className="rounded-[17px] border border-border bg-card p-6">
         <div className="mb-5">
           <h2 className="text-base font-semibold text-card-foreground">Access Policies</h2>
           <p className="text-xs text-muted-foreground">Configured permission rules</p>
@@ -836,7 +864,7 @@ function SettingsTab({ data }: { data: AdminDashboardData }) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border/50 bg-card p-6">
+      <section className="rounded-[17px] border border-border bg-card p-6">
         <h2 className="mb-1 text-base font-semibold text-card-foreground">Platform Configuration</h2>
         <p className="mb-5 text-xs text-muted-foreground">
           Live snapshot from the backend environment — edit <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">.env</code> to change values.
@@ -871,16 +899,16 @@ function SettingsTab({ data }: { data: AdminDashboardData }) {
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-5">
+    <div className="rounded-[16px] border border-border bg-card p-5">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-card-foreground">{value}</p>
+      <p className="mt-2 font-display text-2xl font-bold text-card-foreground">{value}</p>
     </div>
   )
 }
 
 function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border/50 bg-card p-6">
+    <section className="rounded-[17px] border border-border bg-card p-6">
       <h2 className="text-base font-semibold text-card-foreground">{title}</h2>
       {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
       <div className="mt-4">{children}</div>

@@ -16,13 +16,17 @@ import {
   ResponsiveContainer, Cell,
 } from "recharts"
 
-// ── Semantic palette (score quality — do NOT theme these) ─────────────────────
+// ── Brand-aligned chart palette (dark-theme defaults; recharts/SVG need
+// concrete colors, so these mirror the emerald tokens in globals.css). ────────
 const C = {
-  emerald: "#10b981",
-  amber:   "#f59e0b",
-  red:     "#ef4444",
-  blue:    "#3b82f6",
+  emerald: "#34d399", // success
+  amber:   "#f5c451", // warning
+  red:     "#ff6b6b", // destructive
+  blue:    "#56b6ff", // info
 }
+const GRID  = "rgba(120,210,170,0.14)"
+const TICK  = "#7c9488"
+const TRACK = "rgba(120,210,170,0.14)"
 
 // ── Shared tooltip ────────────────────────────────────────────────────────────
 function ChartTip({ active, payload, label }: any) {
@@ -52,7 +56,7 @@ function PerformanceRing({ score }: { score: number }) {
       <div className="relative h-36 w-36">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
           {/* Track */}
-          <circle cx="60" cy="60" r={r} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+          <circle cx="60" cy="60" r={r} fill="none" stroke={GRID} strokeWidth="10" />
           {/* Progress */}
           <circle
             cx="60" cy="60" r={r}
@@ -65,7 +69,7 @@ function PerformanceRing({ score }: { score: number }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold text-card-foreground">{score}%</span>
+          <span className="font-display text-3xl font-bold text-card-foreground">{score}%</span>
           <span className="text-xs text-muted-foreground">avg score</span>
         </div>
       </div>
@@ -92,13 +96,13 @@ function TrendBadge({ sessions }: { sessions: { score: number }[] }) {
   }
   if (delta > 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: "#ecfdf5", color: C.emerald }}>
+      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: `${C.emerald}22`, color: C.emerald }}>
         <TrendingUp className="h-3 w-3" /> +{delta.toFixed(0)} pts
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: "#fef2f2", color: C.red }}>
+    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: `${C.red}22`, color: C.red }}>
       <TrendingDown className="h-3 w-3" /> {delta.toFixed(0)} pts
     </span>
   )
@@ -137,10 +141,9 @@ interface SessionPoint {
 export default function AnalyticsPage() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth()
   const { resolvedTheme } = useTheme()
-  // Accent color for recharts SVG attributes (CSS vars don't work there)
-  const accentColor = resolvedTheme === "dark"
-    ? "oklch(88.421% 0.20618 154.236)"
-    : "oklch(59.98% 0.207 263.1)"
+  // Accent color for recharts SVG attributes (CSS vars don't work there) —
+  // emerald in both themes to match the redesign accent.
+  const accentColor = resolvedTheme === "dark" ? "#2fe39e" : "#0aa06a"
   const [isLoading, setIsLoading] = useState(true)
   const [stats, setStats] = useState({
     totalInterviews: 0,
@@ -294,10 +297,10 @@ export default function AnalyticsPage() {
   const worst = hasData ? Math.min(...sessions.map(s => s.score)) : 0
 
   const kpis = [
-    { label: "Total Sessions",  value: stats.totalInterviews,                    color: "var(--chart-1)" },
-    { label: "Completed",       value: stats.completedInterviews,                color: "var(--chart-2)" },
-    { label: "Personal Best",   value: `${best}%`,                               color: "var(--chart-3)" },
-    { label: "Confidence Gain", value: `+${stats.confidenceImprovement}%`,       color: "var(--chart-4)" },
+    { label: "Total sessions",  value: stats.totalInterviews,              color: "var(--accent)" },
+    { label: "Completed",       value: stats.completedInterviews,          color: "var(--accent)" },
+    { label: "Personal best",   value: `${best}%`,                         color: "var(--accent)" },
+    { label: "Confidence gain", value: `+${stats.confidenceImprovement}%`, color: "var(--success)" },
   ]
 
   return (
@@ -315,7 +318,7 @@ export default function AnalyticsPage() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold text-foreground">My Analytics</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">My Analytics</h1>
           <p className="text-muted-foreground mt-1">Your personal interview performance at a glance.</p>
         </motion.div>
 
@@ -327,10 +330,10 @@ export default function AnalyticsPage() {
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
         >
           {kpis.map((k) => (
-            <div key={k.label} className="rounded-2xl border border-border/50 bg-card p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{k.label}</p>
-              <p className="mt-2 text-3xl font-bold" style={{ color: k.color }}>{k.value}</p>
-              <div className="mt-2 h-1 w-10 rounded-full" style={{ background: k.color, opacity: 0.4 }} />
+            <div key={k.label} className="rounded-[16px] border border-border bg-card p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.07em] text-faint">{k.label}</p>
+              <p className="mt-2.5 font-display text-3xl font-bold" style={{ color: k.color }}>{k.value}</p>
+              <div className="mt-2.5 h-[3px] w-9 rounded-full" style={{ background: k.color, opacity: 0.5 }} />
             </div>
           ))}
         </motion.div>
@@ -343,9 +346,9 @@ export default function AnalyticsPage() {
           className="grid gap-6 lg:grid-cols-3"
         >
           {/* Ring */}
-          <div id="performance" className="scroll-mt-24 rounded-2xl border border-border/50 bg-card p-6 flex flex-col items-center justify-center gap-4">
+          <div id="performance" className="scroll-mt-24 rounded-[17px] border border-border bg-card p-6 flex flex-col items-center justify-center gap-4">
             <div className="text-center">
-              <p className="text-base font-semibold text-card-foreground">Overall Performance</p>
+              <p className="font-display text-base font-semibold text-card-foreground">Overall Performance</p>
               <p className="text-xs text-muted-foreground mt-0.5">Based on all completed sessions</p>
             </div>
             <PerformanceRing score={stats.averageScore} />
@@ -363,8 +366,8 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Session breakdown */}
-          <div id="breakdown" className="lg:col-span-2 scroll-mt-24 rounded-2xl border border-border/50 bg-card p-6">
-            <p className="text-base font-semibold text-card-foreground">Session Breakdown</p>
+          <div id="breakdown" className="lg:col-span-2 scroll-mt-24 rounded-[17px] border border-border bg-card p-6">
+            <p className="font-display text-base font-semibold text-card-foreground">Session Breakdown</p>
             <p className="text-xs text-muted-foreground mt-0.5 mb-6">How your sessions are distributed</p>
             <div className="space-y-4">
               <SessionBar
@@ -405,11 +408,11 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="scroll-mt-24 rounded-2xl border border-border/50 bg-card p-6"
+          className="scroll-mt-24 rounded-[17px] border border-border bg-card p-6"
         >
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <p className="text-base font-semibold text-card-foreground">Score Trend</p>
+              <p className="font-display text-base font-semibold text-card-foreground">Score Trend</p>
               <p className="text-xs text-muted-foreground mt-0.5">Your last {sessions.length} completed sessions</p>
             </div>
             {hasData && <TrendBadge sessions={sessions} />}
@@ -428,16 +431,16 @@ export default function AnalyticsPage() {
                     <stop offset="95%" stopColor={accentColor} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.6} />
+                <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" opacity={0.6} />
                 <XAxis
                   dataKey="label"
                   tickLine={false} axisLine={false}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tick={{ fontSize: 11, fill: TICK }}
                 />
                 <YAxis
                   domain={[0, 100]}
                   tickLine={false} axisLine={false}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tick={{ fontSize: 11, fill: TICK }}
                   width={28}
                   tickFormatter={(v) => `${v}%`}
                 />
@@ -462,26 +465,26 @@ export default function AnalyticsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-border/50 bg-card p-6"
+            className="rounded-[17px] border border-border bg-card p-6"
           >
-            <p className="text-base font-semibold text-card-foreground mb-1">Score per Session</p>
+            <p className="font-display text-base font-semibold text-card-foreground mb-1">Score per Session</p>
             <p className="text-xs text-muted-foreground mb-6">Individual scores — hover for details</p>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={sessions} barCategoryGap="30%" margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" opacity={0.6} />
+                <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" opacity={0.6} />
                 <XAxis
                   dataKey="label"
                   tickLine={false} axisLine={false}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tick={{ fontSize: 11, fill: TICK }}
                 />
                 <YAxis
                   domain={[0, 100]}
                   tickLine={false} axisLine={false}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tick={{ fontSize: 11, fill: TICK }}
                   width={28}
                   tickFormatter={(v) => `${v}`}
                 />
-                <Tooltip content={<ChartTip />} cursor={{ fill: "#f1f5f9", opacity: 0.6 }} />
+                <Tooltip content={<ChartTip />} cursor={{ fill: TRACK, opacity: 0.6 }} />
                 <Bar dataKey="score" radius={[5, 5, 0, 0]}>
                   {sessions.map((s) => {
                     const col = s.score >= 75 ? C.emerald : s.score >= 50 ? C.amber : C.red
@@ -506,8 +509,8 @@ export default function AnalyticsPage() {
             transition={{ delay: 0.25 }}
             className="grid gap-6 lg:grid-cols-2"
           >
-            <div className="rounded-2xl border border-border/50 bg-card p-6">
-              <p className="text-base font-semibold text-card-foreground">By Session Type</p>
+            <div className="rounded-[17px] border border-border bg-card p-6">
+              <p className="font-display text-base font-semibold text-card-foreground">By Session Type</p>
               <p className="text-xs text-muted-foreground mt-0.5 mb-6">
                 Average score where you've practiced most
               </p>
@@ -539,8 +542,8 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-border/50 bg-card p-6">
-              <p className="text-base font-semibold text-card-foreground">By Difficulty</p>
+            <div className="rounded-[17px] border border-border bg-card p-6">
+              <p className="font-display text-base font-semibold text-card-foreground">By Difficulty</p>
               <p className="text-xs text-muted-foreground mt-0.5 mb-6">
                 How you hold up as questions get harder
               </p>
@@ -584,11 +587,11 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="scroll-mt-24 rounded-2xl border border-border/50 bg-card p-6"
+          className="scroll-mt-24 rounded-[17px] border border-border bg-card p-6"
         >
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-base font-semibold text-card-foreground flex items-center gap-2">
+              <p className="font-display text-base font-semibold text-card-foreground flex items-center gap-2">
                 <Flame className="h-4 w-4 text-accent" />
                 Practice Activity
               </p>
@@ -655,10 +658,10 @@ export default function AnalyticsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            className="rounded-2xl border border-border/50 bg-card p-6"
+            className="rounded-[17px] border border-border bg-card p-6"
           >
             <div className="mb-5">
-              <p className="text-base font-semibold text-card-foreground">Monthly Performance</p>
+              <p className="font-display text-base font-semibold text-card-foreground">Monthly Performance</p>
               <p className="text-xs text-muted-foreground mt-0.5">Aggregated stats for the last {monthly.length} month{monthly.length === 1 ? "" : "s"}</p>
             </div>
 
