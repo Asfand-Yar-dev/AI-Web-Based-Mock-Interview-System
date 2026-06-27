@@ -627,7 +627,7 @@ async function uploadRecording(bookingId: string, blob: Blob): Promise<string> {
   const token = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
   const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/upload-recording`, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: token ? { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' } : { 'ngrok-skip-browser-warning': 'true' },
     body: formData,
   });
 
