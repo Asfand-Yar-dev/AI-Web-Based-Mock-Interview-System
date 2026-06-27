@@ -259,7 +259,6 @@ async function apiRequest<T>(
 
   // Build headers
   const requestHeaders: Record<string, string> = {
-    'ngrok-skip-browser-warning': 'true',
     ...headers,
   };
 
@@ -890,7 +889,7 @@ export async function checkApiHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.HEALTH}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
     return response.ok;
   } catch {
