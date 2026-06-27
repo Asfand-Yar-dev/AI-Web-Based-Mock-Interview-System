@@ -443,6 +443,27 @@ def analyze_face():
         import cv2
         video_file.save(temp_path)
 
+        # Guard against empty / truncated clips before handing the file to
+        # OpenCV/ffmpeg. A MediaRecorder clip that captured no real data (camera
+        # off, sub-second answer, or an aborted recording) produces a 0-byte or
+        # tiny file with no valid EBML/webm header — ffmpeg then floods the log
+        # with "EBML header parsing failed" and cap.isOpened() returns False.
+        # Bail out cleanly instead so the rest of the pipeline isn't blocked.
+        try:
+            file_size = os.path.getsize(temp_path)
+        except OSError:
+            file_size = 0
+        if file_size < 1024:  # < 1 KB cannot be a usable video clip
+            logger.warning(
+                "Facial analysis skipped: video clip too small (%d bytes) — "
+                "likely an empty/aborted recording.", file_size
+            )
+            return jsonify({
+                "status": "error",
+                "message": "Empty or too-short video clip — no frames to analyze",
+                "frames_analyzed": 0,
+            }), 422
+
         # Serialize the entire reset → analyze → feedback sequence
         # because the FacialExpressionModel is a shared singleton with
         # mutable emotion history.  Without this lock, concurrent

@@ -75,7 +75,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       } else {
         await signup(formData.name.trim(), formData.email, formData.password, role);
         toast.success("Account created!", {
-          description: "Welcome to Intervexa.",
+          description: "Please sign in to continue.",
         });
       }
       // Redirect is handled by auth context

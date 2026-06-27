@@ -5,7 +5,7 @@ import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Sparkles, LayoutDashboard, Play, FileText, Settings, LogOut, Menu, X, Users, ShieldCheck, BarChart3 } from "lucide-react"
+import { Sparkles, LayoutDashboard, Play, FileText, Settings, LogOut, Menu, X, Users, ShieldCheck, BarChart3, CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
@@ -14,6 +14,7 @@ import { liveInterviewApi } from "@/lib/liveInterviewApi"
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "New Interview", href: "/interview/new", icon: Play },
+  { name: "My Bookings", href: "/live-interview/my-bookings", icon: CalendarDays },
   { name: "View Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "History", href: "/dashboard/history", icon: FileText },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },

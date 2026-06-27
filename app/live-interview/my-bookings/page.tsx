@@ -28,6 +28,7 @@ import {
   CalendarPlus,
 } from "lucide-react";
 import { liveInterviewApi, type LiveBooking, BOOKING_STATUS } from "@/lib/liveInterviewApi";
+import { useBookingRealtime } from "@/hooks/use-booking-realtime";
 import { Button } from "@/components/ui/button";
 import { PremiumLayout } from "@/components/live-interview/premium-layout";
 import { BookingStatusBadge } from "@/components/live-interview/booking-status-badge";
@@ -368,6 +369,10 @@ export default function MyBookingsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Live updates — re-fetch whenever the interviewer responds, payment lands,
+  // results are ready, etc. No manual refresh needed.
+  useBookingRealtime(load);
+
   // ── Sort helpers ─────────────────────────────────────────────────────────
   const byDate = (a: LiveBooking, b: LiveBooking) =>
     new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime();
@@ -390,16 +395,6 @@ export default function MyBookingsPage() {
           <p className="mt-1 text-muted-foreground">Track your bookings from request to completion.</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={load}
-            disabled={refreshing}
-            className="gap-2 bg-transparent"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
           <Link
             href="/live-interview/book"
             className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent/90 transition-colors"

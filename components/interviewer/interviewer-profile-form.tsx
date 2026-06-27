@@ -90,6 +90,18 @@ const DOMAINS = [
   "other",
 ]
 
+const KNOWN_DOMAIN_VALUES = new Set(DOMAINS)
+
+// Split a stored domain into the select value + custom text. Any value that
+// isn't one of the presets is treated as an "Other" custom domain.
+function splitDomain(domainValue: string): { domain: string; customDomain: string } {
+  const v = (domainValue || "").trim().toLowerCase()
+  if (v && v !== "other" && !KNOWN_DOMAIN_VALUES.has(v)) {
+    return { domain: "other", customDomain: v }
+  }
+  return { domain: v, customDomain: "" }
+}
+
 const DOMAIN_LABELS: Record<string, string> = {
   frontend:     "Frontend Development",
   backend:      "Backend Development",
@@ -121,8 +133,12 @@ interface InterviewerProfileFormProps {
 }
 
 export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerProfileFormProps) {
-  const [form, setForm] = useState<ProfilePayload>(
-    initialProfile ? mapProfileToForm(initialProfile) : EMPTY_FORM,
+  const [form, setForm] = useState<ProfilePayload>(() => {
+    const base = initialProfile ? mapProfileToForm(initialProfile) : EMPTY_FORM
+    return { ...base, domain: splitDomain(base.domain).domain }
+  })
+  const [customDomain, setCustomDomain] = useState(() =>
+    splitDomain(initialProfile ? mapProfileToForm(initialProfile).domain : "").customDomain
   )
   const [availability, setAvailability] = useState<AvailabilityRow[]>(
     initialProfile ? mapProfileToAvailability(initialProfile) : DEFAULT_AVAILABILITY,
@@ -136,7 +152,10 @@ export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerP
   useEffect(() => {
     // Parent already supplied the profile — nothing to fetch.
     if (initialProfile) {
-      setForm(mapProfileToForm(initialProfile))
+      const mapped = mapProfileToForm(initialProfile)
+      const { domain, customDomain } = splitDomain(mapped.domain)
+      setForm({ ...mapped, domain })
+      setCustomDomain(customDomain)
       setAvailability(mapProfileToAvailability(initialProfile))
       setLoadingProfile(false)
       return
@@ -146,7 +165,10 @@ export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerP
         const res = await liveInterviewApi.getMyInterviewerProfile()
         const p = res.data
         if (p) {
-          setForm(mapProfileToForm(p))
+          const mapped = mapProfileToForm(p)
+          const { domain, customDomain } = splitDomain(mapped.domain)
+          setForm({ ...mapped, domain })
+          setCustomDomain(customDomain)
           setAvailability(mapProfileToAvailability(p))
         }
       } catch (err: any) {
@@ -187,13 +209,15 @@ export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerP
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.domain.trim()) { setError("Please select a domain."); return }
+    // Resolve the "Other" custom domain into the actual value to save.
+    const resolvedDomain = form.domain === "other" ? customDomain.trim().toLowerCase() : form.domain.trim()
+    if (!resolvedDomain) { setError(form.domain === "other" ? "Please enter your domain." : "Please select a domain."); return }
     if (!form.skills.trim()) { setError("Please enter at least one skill."); return }
     if (!form.hourlyRate || Number(form.hourlyRate) < 0) { setError("Please enter a valid hourly rate."); return }
 
     // Map form fields to backend schema field names
     const payload: Record<string, unknown> = {
-      domains:             [form.domain.trim()],                                        // backend expects array
+      domains:             [resolvedDomain],                                            // backend expects array
       roles:               form.roles.split(",").map((s) => s.trim()).filter(Boolean),  // backend expects array
       skills:              form.skills.split(",").map((s) => s.trim()).filter(Boolean),
       hourlyRate:          Number(form.hourlyRate),                                      // backend field name
@@ -247,11 +271,22 @@ export function InterviewerProfileForm({ onSaved, initialProfile }: InterviewerP
               onChange={(e) => patch({ domain: e.target.value })}
               className="w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
             >
-              <option value="">Select your domain…</option>
+              <option value="" className="bg-card text-card-foreground">Select your domain…</option>
               {DOMAINS.map((d) => (
-                <option key={d} value={d}>{DOMAIN_LABELS[d] || d}</option>
+                <option key={d} value={d} className="bg-card text-card-foreground">{DOMAIN_LABELS[d] || d}</option>
               ))}
             </select>
+            {/* Custom domain field shown when "Other" is selected */}
+            {form.domain === "other" && (
+              <input
+                autoFocus
+                type="text"
+                placeholder="Enter your domain (e.g. Game Development, Embedded Systems)"
+                value={customDomain}
+                onChange={(e) => { setCustomDomain(e.target.value); setSuccess(false); setError(null) }}
+                className="mt-2 w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+              />
+            )}
           </div>
 
           {/* Skills */}

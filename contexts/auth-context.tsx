@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api, authApi, User, clearAuthData, getStoredUser, updateStoredUser, isAuthenticated as checkAuth } from '@/lib/api';
+import { resetRealtimeSocket } from '@/lib/realtimeSocket';
 
 // =============================================================================
 // TYPES
@@ -145,10 +146,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     try {
       const response = await authApi.register(name, email, password, role);
-      
+
       if (response.success && response.data) {
-        setUser(response.data.user);
-        router.replace(roleHomePath(response.data.user.user_role));
+        // No auto-login on sign-up — both users and interviewers must sign in
+        // explicitly. Drop the token register() stored and bounce them to login.
+        clearAuthData();
+        setUser(null);
+        router.replace('/login');
       } else {
         throw new Error(response.message || 'Registration failed');
       }
@@ -198,6 +202,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Logout handler
   const logout = useCallback(() => {
     authApi.logout();
+    resetRealtimeSocket(); // drop the authenticated socket so next login reconnects fresh
     setUser(null);
     setError(null);
     router.push('/login');

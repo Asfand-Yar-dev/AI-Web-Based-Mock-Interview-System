@@ -66,6 +66,10 @@ function attachSignaling(httpServer) {
   _io.on('connection', (socket) => {
     logger.info(`Signaling connect uid=${socket.user.id} sid=${socket.id}`);
 
+    // Personal room so the server can push targeted real-time updates
+    // (e.g. booking lifecycle changes) to this user on any open tab.
+    socket.join('user:' + socket.user.id);
+
     socket.on('join-room', async ({ roomId }, ack) => {
       try {
         const booking = await LiveBooking.findOne({ meetingRoomId: roomId });
@@ -121,4 +125,14 @@ function attachSignaling(httpServer) {
   return _io;
 }
 
-module.exports = { attachSignaling, getIo: () => _io };
+/**
+ * Push a real-time event to every connected socket of a given user.
+ * No-op if Socket.IO isn't attached (e.g. socket.io not installed) or
+ * the user isn't connected. Safe to call fire-and-forget.
+ */
+function emitToUser(userId, event, payload) {
+  if (!_io || !userId) return;
+  _io.to('user:' + String(userId)).emit(event, payload);
+}
+
+module.exports = { attachSignaling, getIo: () => _io, emitToUser };

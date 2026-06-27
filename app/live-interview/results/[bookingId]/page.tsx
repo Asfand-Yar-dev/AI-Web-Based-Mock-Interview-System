@@ -139,6 +139,23 @@ function DimCard({ label, score, icon: Icon, color, bg }: {
   );
 }
 
+// ── Interviewer dimension metadata (face, voice, confidence, …) ───────────────
+
+const HUMAN_DIMENSION_META: Array<{
+  key: "confidence" | "communication" | "technical" | "problemSolving" | "bodyLanguage" | "voiceClarity"
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  bg: string
+}> = [
+  { key: "confidence",     label: "Confidence",        icon: Sparkles,       color: "text-success", bg: "bg-success/5" },
+  { key: "communication",  label: "Communication",     icon: MessageSquare,  color: "text-info",    bg: "bg-info/5" },
+  { key: "technical",      label: "Technical",         icon: Brain,          color: "text-info",    bg: "bg-info/5" },
+  { key: "problemSolving", label: "Problem Solving",   icon: TrendingUp,     color: "text-warning", bg: "bg-warning/5" },
+  { key: "bodyLanguage",   label: "Body Language",     icon: User,           color: "text-accent",  bg: "bg-accent/5" },
+  { key: "voiceClarity",   label: "Voice & Clarity",   icon: Star,           color: "text-accent",  bg: "bg-accent/5" },
+]
+
 // ── Strengths & Improvements Lists ───────────────────────────────────────────
 
 function StrengthsList({ strengths }: { strengths: string[] }) {
@@ -382,8 +399,11 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
-        {/* Human Feedback */}
-        {booking.humanFeedback && (
+        {/* Human Feedback — shown whenever the interviewer submitted scores
+            and/or written notes (written feedback is optional). */}
+        {(humanScore !== null ||
+          booking.humanFeedback ||
+          (booking.humanDimensionScores && Object.keys(booking.humanDimensionScores).length > 0)) && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -402,14 +422,29 @@ export default function LiveResultsPage() {
                 </div>
               )}
             </div>
-            <div className="flex gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10">
-                <User className="h-4 w-4 text-accent" />
+            {/* Interviewer's per-dimension scores (face, voice, confidence, …) */}
+            {booking.humanDimensionScores && Object.keys(booking.humanDimensionScores).length > 0 && (
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {HUMAN_DIMENSION_META.map(({ key, label, icon, color, bg }) => {
+                  const v = booking.humanDimensionScores?.[key]
+                  if (typeof v !== "number") return null
+                  return <DimCard key={key} label={label} score={v} icon={icon} color={color} bg={bg} />
+                })}
               </div>
-              <div className="rounded-xl bg-secondary/30 px-4 py-3 text-sm text-card-foreground whitespace-pre-wrap leading-relaxed">
-                {booking.humanFeedback}
+            )}
+
+            {/* Optional written mistakes / tips */}
+            {booking.humanFeedback && (
+              <div className="flex gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10">
+                  <User className="h-4 w-4 text-accent" />
+                </div>
+                <div className="rounded-xl bg-secondary/30 px-4 py-3 text-sm text-card-foreground whitespace-pre-wrap leading-relaxed">
+                  <span className="mb-1 block text-xs font-semibold text-muted-foreground">Mistakes &amp; Tips</span>
+                  {booking.humanFeedback}
+                </div>
               </div>
-            </div>
+            )}
           </motion.div>
         )}
 

@@ -659,11 +659,14 @@ export default function InterviewSessionPage() {
             transition={{ duration: 0.4 }}
             className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] border border-border bg-[radial-gradient(circle_at_50%_38%,color-mix(in_oklab,var(--accent)_10%,var(--secondary)),var(--background))]"
           >
+            {/* Mirror the self-view (scaleX(-1)) so it behaves like a real
+                mirror: raising your right hand shows on the right of the screen. */}
             <video
               ref={videoRef}
               autoPlay
               muted
               playsInline
+              style={{ transform: "scaleX(-1)" }}
               className={`h-full w-full object-cover ${!isCameraOn && "hidden"}`}
             />
 

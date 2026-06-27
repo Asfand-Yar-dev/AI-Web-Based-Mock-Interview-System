@@ -47,7 +47,11 @@ const DOMAINS = [
   { value: "other",      label: "Other" },
 ];
 
-const DURATIONS = [30, 45, 60, 90, 120];
+// Standard options stay within 15–60 minutes; "Other" lets the user enter a
+// custom duration (still bounded to the backend's 15–180 limit).
+const DURATIONS = [15, 30, 45, 60];
+const DURATION_MIN = 15;
+const DURATION_MAX = 180;
 
 function defaultScheduledTime() {
   const t = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -138,8 +142,15 @@ export default function BookLiveInterviewPage() {
   const [role, setRole]                   = useState("Software Engineer");
   const [skills, setSkills]               = useState("React, Node.js");
   const [domain, setDomain]               = useState("frontend");
+  const [customDomain, setCustomDomain]   = useState("");
   const [scheduledTime, setScheduledTime] = useState(defaultScheduledTime);
   const [duration, setDuration]           = useState(45);
+  const [isOtherDuration, setIsOtherDuration] = useState(false);
+  const [customDuration, setCustomDuration]   = useState("");
+
+  // Resolved values that account for the "Other" custom inputs.
+  const finalDomain   = domain === "other" ? customDomain.trim().toLowerCase() : domain;
+  const finalDuration = isOtherDuration ? Math.round(Number(customDuration)) : duration;
 
   // Submission state
   const [busy, setBusy]   = useState(false);
@@ -151,6 +162,14 @@ export default function BookLiveInterviewPage() {
     
     if (!role.trim()) {
       setError("Target role is required");
+      return;
+    }
+    if (!finalDomain) {
+      setError("Please enter your domain");
+      return;
+    }
+    if (!Number.isFinite(finalDuration) || finalDuration < DURATION_MIN || finalDuration > DURATION_MAX) {
+      setError(`Session duration must be between ${DURATION_MIN} and ${DURATION_MAX} minutes`);
       return;
     }
     if (!scheduledTime) {
@@ -174,7 +193,7 @@ export default function BookLiveInterviewPage() {
         interviewerId: "auto",
         role,
         skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
-        domain,
+        domain: finalDomain,
         scheduledTime: slot.toISOString(),
       });
 
@@ -200,10 +219,10 @@ export default function BookLiveInterviewPage() {
       const res = await liveInterviewApi.requestBooking({
         interviewerId: "auto",
         role,
-        domain,
+        domain: finalDomain,
         skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
         scheduledTime: new Date(scheduledTime).toISOString(),
-        durationMinutes: duration,
+        durationMinutes: finalDuration,
       });
       router.push(`/live-interview/my-bookings`);
     } catch (err: any) {
@@ -276,6 +295,16 @@ export default function BookLiveInterviewPage() {
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
                 </select>
+                {/* Custom domain field shown when "Other" is selected */}
+                {domain === "other" && (
+                  <input
+                    autoFocus
+                    className={`${inputClass} mt-2`}
+                    value={customDomain}
+                    onChange={(e) => { setCustomDomain(e.target.value); setError(null); }}
+                    placeholder="Enter your domain (e.g. Game Development, Embedded Systems)"
+                  />
+                )}
               </div>
 
               {/* Skills */}
@@ -320,9 +349,9 @@ export default function BookLiveInterviewPage() {
                     <button
                       key={d}
                       type="button"
-                      onClick={() => { setDuration(d); setError(null); }}
+                      onClick={() => { setDuration(d); setIsOtherDuration(false); setError(null); }}
                       className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
-                        duration === d
+                        !isOtherDuration && duration === d
                           ? "border-accent bg-accent/15 text-accent"
                           : "border-border/50 bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary"
                       }`}
@@ -330,7 +359,39 @@ export default function BookLiveInterviewPage() {
                       {d} min
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => { setIsOtherDuration(true); setError(null); }}
+                    className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
+                      isOtherDuration
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border/50 bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    Other
+                  </button>
                 </div>
+                {/* Custom duration field shown when "Other" is selected */}
+                {isOtherDuration && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      autoFocus
+                      type="number"
+                      min={DURATION_MIN}
+                      max={DURATION_MAX}
+                      value={customDuration}
+                      onChange={(e) => { setCustomDuration(e.target.value); setError(null); }}
+                      placeholder={`e.g. 75`}
+                      className={`${inputClass} max-w-[140px]`}
+                    />
+                    <span className="text-sm text-muted-foreground">minutes</span>
+                  </div>
+                )}
+                {isOtherDuration && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Enter any duration between {DURATION_MIN} and {DURATION_MAX} minutes.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -381,7 +442,7 @@ export default function BookLiveInterviewPage() {
               <div className="divide-y divide-border/30">
                 <SummaryRow icon={User}        label="Interviewer"  value="Assigned by System (Auto-Match)" />
                 <SummaryRow icon={Briefcase}   label="Role"         value={role} />
-                <SummaryRow icon={Globe}       label="Domain"       value={domain} />
+                <SummaryRow icon={Globe}       label="Domain"       value={finalDomain || domain} />
                 {skills && <SummaryRow icon={Tag} label="Skills"    value={skills} />}
                 <SummaryRow
                   icon={CalendarDays}
@@ -395,7 +456,7 @@ export default function BookLiveInterviewPage() {
                   label="Time"
                   value={new Date(scheduledTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 />
-                <SummaryRow icon={Clock}    label="Duration"      value={`${duration} minutes`} />
+                <SummaryRow icon={Clock}    label="Duration"      value={`${finalDuration} minutes`} />
                 <SummaryRow icon={Star}     label="Est. Cost"     value="Variable (Based on matched interviewer)" />
               </div>
             </div>

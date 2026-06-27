@@ -591,19 +591,39 @@ async function submitInterviewerFeedback(req, res) {
     throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Only the assigned interviewer can submit feedback');
   }
 
-  const { humanScore, humanFeedback, transcript } = req.body;
+  const { humanScore, humanFeedback, transcript, dimensionScores } = req.body;
 
   if (typeof humanScore !== 'number' || humanScore < 0 || humanScore > 100) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'humanScore must be a number 0–100');
   }
-  if (!humanFeedback || humanFeedback.length < 10) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'humanFeedback is required (≥ 10 chars)');
+  // humanFeedback is optional now — scoring (the sliders) is the required part.
+  // It's only used for free-form mistakes/tips, so just cap its length if given.
+  const cleanFeedback = (typeof humanFeedback === 'string' && humanFeedback.trim().length > 0)
+    ? humanFeedback.trim().slice(0, 4000)
+    : null;
+
+  // Per-dimension scores (face, voice, confidence, …) — all optional, each 0–100.
+  const DIMENSION_KEYS = ['confidence', 'communication', 'technical', 'problemSolving', 'bodyLanguage', 'voiceClarity'];
+  const cleanDimensions = {};
+  if (dimensionScores && typeof dimensionScores === 'object') {
+    for (const key of DIMENSION_KEYS) {
+      const v = dimensionScores[key];
+      if (v === undefined || v === null || v === '') continue;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, `${key} score must be a number 0–100`);
+      }
+      cleanDimensions[key] = Math.round(n);
+    }
   }
 
   // ── Save human feedback fields ─────────────────────────────────────────────
   booking.humanScore       = humanScore;
-  booking.humanFeedback    = humanFeedback;
+  if (cleanFeedback) booking.humanFeedback = cleanFeedback;
   booking.humanSubmittedAt = new Date();
+  if (Object.keys(cleanDimensions).length > 0) {
+    booking.humanDimensionScores = cleanDimensions;
+  }
 
   const cleanTranscript = transcript && transcript.trim().length >= 20
     ? transcript.trim()

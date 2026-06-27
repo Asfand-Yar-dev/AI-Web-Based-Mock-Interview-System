@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { Suspense, useState, useEffect } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { liveInterviewApi } from "@/lib/liveInterviewApi"
+import { useBookingRealtime } from "@/hooks/use-booking-realtime"
 
 export type InterviewerTab = "overview" | "bookings" | "profile" | "history" | "settings"
 
@@ -44,7 +45,6 @@ interface InterviewerLayoutProps {
   onTabChange: (tab: InterviewerTab) => void
   title: string
   subtitle: string
-  onRefresh?: () => void
 }
 
 export function InterviewerLayout(props: InterviewerLayoutProps) {
@@ -61,7 +61,6 @@ function InterviewerLayoutInner({
   onTabChange,
   title,
   subtitle,
-  onRefresh,
 }: InterviewerLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -130,12 +129,6 @@ function InterviewerLayoutInner({
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            {onRefresh && (
-              <Button variant="outline" size="sm" onClick={onRefresh} className="gap-2 bg-transparent hidden sm:flex">
-                <History className="h-3.5 w-3.5" />
-                Refresh
-              </Button>
-            )}
           </div>
         </header>
 
@@ -173,7 +166,7 @@ function SidebarContent({
   const displayName = user?.name || user?.email || "Interviewer"
   const userEmail  = user?.email || ""
 
-  useEffect(() => {
+  const refreshPendingCount = useCallback(() => {
     liveInterviewApi.myBookings("interviewer")
       .then((res) => {
         const count = (res.data ?? []).filter((b) => b.status === "pending_approval").length
@@ -181,6 +174,11 @@ function SidebarContent({
       })
       .catch((err) => console.error("Failed to fetch pending bookings count:", err))
   }, [])
+
+  useEffect(() => { refreshPendingCount() }, [refreshPendingCount])
+
+  // Keep the "pending approval" badge live as new requests arrive / are answered.
+  useBookingRealtime(refreshPendingCount)
 
   return (
     <div className="flex h-full flex-col">

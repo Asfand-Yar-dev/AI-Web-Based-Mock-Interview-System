@@ -70,6 +70,14 @@ export interface LiveBooking {
   combinedScore?: number;
   humanScore?: number;
   humanFeedback?: string;
+  humanDimensionScores?: {
+    confidence?: number;
+    communication?: number;
+    technical?: number;
+    problemSolving?: number;
+    bodyLanguage?: number;
+    voiceClarity?: number;
+  };
   amountCents?: number;
   currency?: string;
   createdAt: string;
@@ -169,10 +177,16 @@ export const liveInterviewApi = {
       body: JSON.stringify({ recordingUrl }),
     }),
 
-  submitInterviewerFeedback: (bookingId: string, humanScore: number, humanFeedback: string, transcript?: string) =>
+  submitInterviewerFeedback: (
+    bookingId: string,
+    humanScore: number,
+    humanFeedback?: string,
+    transcript?: string,
+    dimensionScores?: Partial<Record<'confidence' | 'communication' | 'technical' | 'problemSolving' | 'bodyLanguage' | 'voiceClarity', number>>,
+  ) =>
     jsonFetch(API_ENDPOINTS.LIVE.INTERVIEWER_FEEDBACK(bookingId), {
       method: 'POST',
-      body: JSON.stringify({ humanScore, humanFeedback, transcript }),
+      body: JSON.stringify({ humanScore, humanFeedback, transcript, dimensionScores }),
     }),
 
   searchInterviewers: (params: { domain?: string; skill?: string; role?: string } = {}) => {

@@ -195,6 +195,49 @@ function ApprovalPanel({
 
 // ── Feedback form ─────────────────────────────────────────────────────────────
 
+// The human-observable dimensions an interviewer rates from watching the live
+// session (face, voice, confidence, …). Each 0–100; the overall score
+// auto-fills with their average but stays editable.
+const HUMAN_DIMENSIONS = [
+  { key: "confidence",     label: "Confidence" },
+  { key: "communication",  label: "Communication" },
+  { key: "technical",      label: "Technical Knowledge" },
+  { key: "problemSolving", label: "Problem Solving" },
+  { key: "bodyLanguage",   label: "Body Language / Facial Expression" },
+  { key: "voiceClarity",   label: "Voice & Clarity" },
+] as const
+
+type DimensionKey = (typeof HUMAN_DIMENSIONS)[number]["key"]
+
+function DimensionSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  const color = value >= 80 ? "text-success" : value >= 50 ? "text-warning" : "text-destructive"
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-card-foreground">{label}</label>
+        <span className={`text-xs font-bold tabular-nums ${color}`}>{value}</span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-accent cursor-pointer"
+      />
+    </div>
+  )
+}
+
 function FeedbackForm({
   bookingId,
   onSuccess,
@@ -202,25 +245,41 @@ function FeedbackForm({
   bookingId: string
   onSuccess: () => void
 }) {
-  const [score, setScore]       = useState("")
+  const [dims, setDims] = useState<Record<DimensionKey, number>>(() =>
+    HUMAN_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d.key]: 70 }), {} as Record<DimensionKey, number>)
+  )
+  const [overall, setOverall]   = useState("")
+  const [overallTouched, setOverallTouched] = useState(false)
   const [text, setText]         = useState("")
   const [transcript, setTranscript] = useState("")
   const [busy, setBusy]         = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
+  // Overall auto-fills with the average of the dimension scores, but the
+  // interviewer can override it (then we stop auto-syncing).
+  const dimsAvg = Math.round(
+    HUMAN_DIMENSIONS.reduce((sum, d) => sum + dims[d.key], 0) / HUMAN_DIMENSIONS.length
+  )
+  const overallValue = overallTouched ? overall : String(dimsAvg)
+
+  function setDim(key: DimensionKey, v: number) {
+    setDims((prev) => ({ ...prev, [key]: v }))
+    setError(null)
+  }
+
   async function submit() {
-    const s = Number(score)
-    if (!Number.isFinite(s) || s < 0 || s > 100) { setError("Score must be between 0 and 100"); return }
-    if (!text || text.trim().length < 10)           { setError("Feedback must be at least 10 characters"); return }
+    const s = Number(overallValue)
+    if (!Number.isFinite(s) || s < 0 || s > 100) { setError("Overall score must be between 0 and 100"); return }
     setBusy(true)
     setError(null)
     try {
       await liveInterviewApi.submitInterviewerFeedback(
         bookingId,
         s,
-        text.trim(),
-        transcript.trim() || undefined
+        text.trim() || undefined,        // mistakes / tips — optional
+        transcript.trim() || undefined,
+        dims,
       )
       setSubmitted(true)
       onSuccess()
@@ -245,20 +304,41 @@ function FeedbackForm({
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
-      className="space-y-3 overflow-hidden"
+      className="space-y-4 overflow-hidden"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
         <MessageSquare className="h-4 w-4 text-accent" />
         Submit Your Feedback
       </div>
+
+      {/* Per-dimension scores */}
+      <div className="rounded-xl border border-border/40 bg-secondary/20 p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground">
+          Rate the candidate on each dimension
+        </p>
+        <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+          {HUMAN_DIMENSIONS.map((d) => (
+            <DimensionSlider
+              key={d.key}
+              label={d.label}
+              value={dims[d.key]}
+              onChange={(v) => setDim(d.key, v)}
+            />
+          ))}
+        </div>
+      </div>
+
       <div>
-        <label className="text-xs text-muted-foreground mb-1.5 block">Score (0–100)</label>
+        <label className="text-xs text-muted-foreground mb-1.5 flex items-center justify-between">
+          <span>Overall Score (0–100)</span>
+          {!overallTouched && <span className="text-accent">auto-averaged · editable</span>}
+        </label>
         <input
           type="number" min={0} max={100}
           placeholder="e.g. 78"
           className="w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
-          value={score}
-          onChange={(e) => { setScore(e.target.value); setError(null) }}
+          value={overallValue}
+          onChange={(e) => { setOverallTouched(true); setOverall(e.target.value); setError(null) }}
         />
       </div>
       <div>
@@ -283,10 +363,12 @@ function FeedbackForm({
         </p>
       </div>
       <div>
-        <label className="text-xs text-muted-foreground mb-1.5 block">Detailed Feedback (min. 10 chars)</label>
+        <label className="text-xs text-muted-foreground mb-1.5 block">
+          Mistakes &amp; Tips <span className="text-muted-foreground/70">(optional)</span>
+        </label>
         <textarea
           rows={4}
-          placeholder="Share your observations on the candidate's performance, communication, and technical skills…"
+          placeholder="Optional — note any mistakes the candidate made and tips to improve (e.g. rushed answers, weak on system design, work on STAR-format responses…)"
           className="w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none transition-all"
           value={text}
           onChange={(e) => { setText(e.target.value); setError(null) }}

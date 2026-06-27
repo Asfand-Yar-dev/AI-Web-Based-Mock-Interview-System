@@ -30,6 +30,7 @@ import { toast } from "sonner"
 
 import { useRequireAuth, useAuth } from "@/contexts/auth-context"
 import { liveInterviewApi, type LiveBooking, type InterviewerProfile } from "@/lib/liveInterviewApi"
+import { useBookingRealtime } from "@/hooks/use-booking-realtime"
 import { Button } from "@/components/ui/button"
 
 import { InterviewerLayout, type InterviewerTab } from "@/components/interviewer/interviewer-layout"
@@ -96,13 +97,15 @@ export default function InterviewerDashboardPage() {
     }
   }, [authLoading, isAuthenticated, user, router])
 
-  const loadBookings = useCallback(async () => {
-    setLoading(true)
+  // `silent` skips the full-page loading state so real-time refreshes update
+  // the lists in place instead of flashing the loader on every server push.
+  const loadBookings = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     setError(null)
     try {
       const res = await liveInterviewApi.myBookings("interviewer")
       setBookings(res.data ?? [])
-      
+
       try {
         const pRes = await liveInterviewApi.getMyInterviewerProfile()
         setProfile(pRes.data || null)
@@ -112,13 +115,17 @@ export default function InterviewerDashboardPage() {
     } catch (err: any) {
       setError(err?.message || "Failed to load bookings")
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) loadBookings()
   }, [authLoading, isAuthenticated, loadBookings])
+
+  // Live updates — when an applicant sends a new request (or any booking
+  // changes), refresh the lists silently so it appears without a manual refresh.
+  useBookingRealtime(useCallback(() => { loadBookings({ silent: true }) }, [loadBookings]))
 
   // ── Loading state ──
   if (authLoading || loading) {
@@ -142,7 +149,7 @@ export default function InterviewerDashboardPage() {
           <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
           <h2 className="mt-3 text-xl font-semibold text-card-foreground">Could not load dashboard</h2>
           <p className="mt-2 text-sm text-muted-foreground">{error ?? "Unknown error"}</p>
-          <Button onClick={loadBookings} variant="outline" className="mt-5 bg-transparent gap-2">
+          <Button onClick={() => loadBookings()} variant="outline" className="mt-5 bg-transparent gap-2">
             <RefreshCw className="h-4 w-4" />
             Try Again
           </Button>
@@ -160,7 +167,6 @@ export default function InterviewerDashboardPage() {
       onTabChange={setActiveTab}
       title={title}
       subtitle={subtitle}
-      onRefresh={loadBookings}
     >
       <motion.div
         key={activeTab}
@@ -700,7 +706,7 @@ function MiniBookingRow({
             Decline
           </Button>
         </div>
-      ) : showJoin && hovered ? (
+      ) : showJoin ? (
         <Link
           href={`/live-interview/room/${booking.meetingRoomId}`}
           className="shrink-0 h-8 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/90 transition-colors"

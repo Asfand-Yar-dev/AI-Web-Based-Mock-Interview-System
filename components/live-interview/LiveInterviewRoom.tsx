@@ -64,6 +64,44 @@ const PHASE_LABEL: Record<Phase, string> = {
   error:      "Connection error",
 };
 
+// Dimensions the interviewer scores after the call — the same set the AI
+// evaluates (face, voice, confidence, …). Each 0–100; the overall score
+// auto-fills with their average but stays editable.
+const FB_DIMENSIONS = [
+  { key: "confidence",     label: "Confidence" },
+  { key: "communication",  label: "Communication" },
+  { key: "technical",      label: "Technical Knowledge" },
+  { key: "problemSolving", label: "Problem Solving" },
+  { key: "bodyLanguage",   label: "Body Language / Facial" },
+  { key: "voiceClarity",   label: "Voice & Clarity" },
+] as const;
+
+type FbDimensionKey = (typeof FB_DIMENSIONS)[number]["key"];
+
+function scoreColor(v: number): string {
+  return v >= 80 ? "#10b981" : v >= 60 ? "#f59e0b" : "#ef4444";
+}
+
+function FbDimensionSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-white/80">{label}</span>
+        <span className="text-xs font-bold tabular-nums" style={{ color: scoreColor(value) }}>{value}</span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-current"
+        style={{ color: scoreColor(value) }}
+      />
+    </div>
+  );
+}
+
 export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true, onEnded, localName = "You", remoteName = "Interviewer" }: Props) {
   const localVideoRef  = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -83,7 +121,11 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const [audioBlocked, setAudioBlocked] = useState(false);
 
   // ── Interviewer feedback form (shown after the interviewer ends the call) ──
+  const [fbDims, setFbDims] = useState<Record<FbDimensionKey, number>>(() =>
+    FB_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d.key]: 70 }), {} as Record<FbDimensionKey, number>)
+  );
   const [fbScore, setFbScore]           = useState(70);
+  const [fbScoreTouched, setFbScoreTouched] = useState(false);
   const [fbFeedback, setFbFeedback]     = useState("");
   const [fbTranscript, setFbTranscript] = useState("");
   const [fbSubmitting, setFbSubmitting] = useState(false);
@@ -235,11 +277,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
 
   async function submitFeedback() {
     setFbError(null);
-    if (fbFeedback.trim().length < 10) {
-      setFbError("Please write at least 10 characters of feedback.");
-      return;
-    }
-    if (fbScore < 0 || fbScore > 100) {
+    if (fbEffectiveScore < 0 || fbEffectiveScore > 100) {
       setFbError("Score must be between 0 and 100.");
       return;
     }
@@ -247,9 +285,10 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
     try {
       await liveInterviewApi.submitInterviewerFeedback(
         bookingId,
-        fbScore,
-        fbFeedback.trim(),
+        fbEffectiveScore,
+        fbFeedback.trim() || undefined,        // mistakes / tips — optional
         fbTranscript.trim() || undefined,
+        fbDims,
       );
       setPhase("done");
       onEnded?.();
@@ -277,16 +316,30 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
 
-  const fbScoreColor = fbScore >= 80 ? "#10b981" : fbScore >= 60 ? "#f59e0b" : "#ef4444";
+  // Overall score auto-fills with the average of the dimension scores, but the
+  // interviewer can override it by dragging the overall slider.
+  const fbDimsAvg = Math.round(
+    FB_DIMENSIONS.reduce((sum, d) => sum + (fbDims[d.key] ?? 0), 0) / FB_DIMENSIONS.length
+  );
+  const fbEffectiveScore = fbScoreTouched ? fbScore : fbDimsAvg;
+  const fbScoreColor = scoreColor(fbEffectiveScore);
+
+  function setFbDim(key: FbDimensionKey, v: number) {
+    setFbDims((prev) => ({ ...prev, [key]: v }));
+    setFbError(null);
+  }
 
   return (
     <div className="relative flex h-screen w-full flex-col bg-black">
       {/* ── Remote video (full screen) ── */}
       <div className="relative flex-1 overflow-hidden">
+        {/* Mirrored to match the self-view so both feeds read the same way
+            (raising your right hand shows on the right). */}
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
+          style={{ transform: "scaleX(-1)" }}
           className="h-full w-full object-cover"
         />
 
@@ -377,11 +430,15 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
 
         {/* ── Local PiP video (bottom-right) ── */}
         <div className="absolute bottom-20 right-4 w-36 overflow-hidden rounded-xl border-2 border-white/10 bg-black shadow-2xl md:w-48">
+          {/* Mirror the local self-view (scaleX(-1)) so it behaves like a real
+              mirror: raising your right hand shows on the right. The remote
+              peer's video is NOT mirrored. */}
           <video
             ref={localVideoRef}
             autoPlay
             playsInline
             muted
+            style={{ transform: "scaleX(-1)" }}
             className={`h-full w-full object-cover transition-opacity ${camOn ? "opacity-100" : "opacity-20"}`}
           />
           {/* Local label */}
@@ -464,32 +521,50 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
                 </div>
               </div>
 
-              {/* Score */}
-              <label className="mb-2 block text-sm font-medium text-white/80">Overall Score</label>
+              {/* Per-dimension scores */}
+              <label className="mb-2 block text-sm font-medium text-white/80">
+                Rate the candidate on each dimension
+              </label>
+              <div className="mb-5 grid grid-cols-1 gap-x-5 gap-y-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
+                {FB_DIMENSIONS.map((d) => (
+                  <FbDimensionSlider
+                    key={d.key}
+                    label={d.label}
+                    value={fbDims[d.key]}
+                    onChange={(v) => setFbDim(d.key, v)}
+                  />
+                ))}
+              </div>
+
+              {/* Overall score (auto-averaged, editable) */}
+              <label className="mb-2 flex items-center justify-between text-sm font-medium text-white/80">
+                <span>Overall Score</span>
+                {!fbScoreTouched && <span className="text-xs text-accent">auto-averaged · editable</span>}
+              </label>
               <div className="mb-5 flex items-center gap-4">
                 <input
                   type="range"
                   min={0}
                   max={100}
-                  value={fbScore}
-                  onChange={(e) => setFbScore(Number(e.target.value))}
+                  value={fbEffectiveScore}
+                  onChange={(e) => { setFbScoreTouched(true); setFbScore(Number(e.target.value)); }}
                   className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-current"
                   style={{ color: fbScoreColor }}
                 />
                 <span className="w-12 text-right text-2xl font-bold tabular-nums" style={{ color: fbScoreColor }}>
-                  {fbScore}
+                  {fbEffectiveScore}
                 </span>
               </div>
 
-              {/* Written feedback */}
+              {/* Optional written feedback — mistakes & tips */}
               <label className="mb-2 block text-sm font-medium text-white/80">
-                Written Feedback <span className="text-white/40">(required)</span>
+                Mistakes &amp; Tips <span className="text-white/40">(optional)</span>
               </label>
               <textarea
                 value={fbFeedback}
                 onChange={(e) => setFbFeedback(e.target.value)}
                 rows={4}
-                placeholder="Strengths, areas to improve, overall impression…"
+                placeholder="Optional — note any mistakes and tips to improve…"
                 className="mb-5 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-accent/50 focus:outline-none"
               />
 
