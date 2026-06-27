@@ -10,11 +10,11 @@
 import { API_BASE_URL, API_ENDPOINTS, STORAGE_KEYS } from './api-config';
 
 function authHeaders(): HeadersInit {
-  if (typeof window === 'undefined') return { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' };
+  if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
   const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
   return {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
+    
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }

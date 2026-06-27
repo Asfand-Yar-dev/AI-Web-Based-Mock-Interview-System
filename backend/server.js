@@ -35,7 +35,7 @@ const corsOptions = {
   origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',').map(s => s.trim()),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 
@@ -148,20 +148,20 @@ app.get('/health', (req, res) => {
 
 // ============ API ROUTES ============
 
-app.use('/api/users',      require('./routes/userRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/interviews', require('./routes/interviewRoutes'));
-app.use('/api/questions',  require('./routes/questionRoutes'));
-app.use('/api/answers',    require('./routes/answerRoutes'));
-app.use('/api/results',    require('./routes/resultRoutes'));
-app.use('/api/admin',      require('./routes/adminRoutes'));
+app.use('/api/questions', require('./routes/questionRoutes'));
+app.use('/api/answers', require('./routes/answerRoutes'));
+app.use('/api/results', require('./routes/resultRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // ── Premium Live Interview Routes ────────────────────────────────────────────
 // Architecture: Doc/premium_live_interview_architecture.md
-app.use('/api/bookings',     require('./routes/bookingRoutes'));
+app.use('/api/bookings', require('./routes/bookingRoutes'));
 app.use('/api/interviewers', require('./routes/interviewerRoutes'));
-app.use('/api/payments',     require('./routes/paymentRoutes'));
-app.use('/api/webhooks',     require('./routes/webhookRoutes'));
-app.use('/api/vetting',      require('./routes/vettingRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/webhooks', require('./routes/webhookRoutes'));
+app.use('/api/vetting', require('./routes/vettingRoutes'));
 
 // =====================================================================
 // API DOCUMENTATION (Swagger / OpenAPI)

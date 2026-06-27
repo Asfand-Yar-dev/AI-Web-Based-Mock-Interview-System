@@ -890,7 +890,7 @@ export async function checkApiHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.HEALTH}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      headers: { 'Content-Type': 'application/json' },
     });
     return response.ok;
   } catch {

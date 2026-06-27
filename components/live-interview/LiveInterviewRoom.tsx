@@ -54,26 +54,26 @@ const RTC_CONFIG: RTCConfiguration = {
 type Phase = "idle" | "connecting" | "in-call" | "ended" | "uploading" | "feedback" | "done" | "error";
 
 const PHASE_LABEL: Record<Phase, string> = {
-  idle:       "Initialising…",
+  idle: "Initialising…",
   connecting: "Connecting…",
-  "in-call":  "Connected",
-  ended:      "Call ended",
-  uploading:  "Uploading recording…",
-  feedback:   "Awaiting your feedback",
-  done:       "Processing complete",
-  error:      "Connection error",
+  "in-call": "Connected",
+  ended: "Call ended",
+  uploading: "Uploading recording…",
+  feedback: "Awaiting your feedback",
+  done: "Processing complete",
+  error: "Connection error",
 };
 
 // Dimensions the interviewer scores after the call — the same set the AI
 // evaluates (face, voice, confidence, …). Each 0–100; the overall score
 // auto-fills with their average but stays editable.
 const FB_DIMENSIONS = [
-  { key: "confidence",     label: "Confidence" },
-  { key: "communication",  label: "Communication" },
-  { key: "technical",      label: "Technical Knowledge" },
+  { key: "confidence", label: "Confidence" },
+  { key: "communication", label: "Communication" },
+  { key: "technical", label: "Technical Knowledge" },
   { key: "problemSolving", label: "Problem Solving" },
-  { key: "bodyLanguage",   label: "Body Language / Facial" },
-  { key: "voiceClarity",   label: "Voice & Clarity" },
+  { key: "bodyLanguage", label: "Body Language / Facial" },
+  { key: "voiceClarity", label: "Voice & Clarity" },
 ] as const;
 
 type FbDimensionKey = (typeof FB_DIMENSIONS)[number]["key"];
@@ -103,20 +103,20 @@ function FbDimensionSlider({ label, value, onChange }: { label: string; value: n
 }
 
 export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true, onEnded, localName = "You", remoteName = "Interviewer" }: Props) {
-  const localVideoRef  = useRef<HTMLVideoElement | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pcRef          = useRef<RTCPeerConnection | null>(null);
-  const socketRef      = useRef<any>(null);
-  const recorderRef    = useRef<MediaRecorder | null>(null);
-  const chunksRef      = useRef<Blob[]>([]);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const socketRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [phase, setPhase]         = useState<Phase>("idle");
-  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
-  const [micOn, setMicOn]         = useState(true);
-  const [camOn, setCamOn]         = useState(true);
-  const [elapsed, setElapsed]     = useState(0); // seconds
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
+  const [elapsed, setElapsed] = useState(0); // seconds
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
 
@@ -124,12 +124,12 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const [fbDims, setFbDims] = useState<Record<FbDimensionKey, number>>(() =>
     FB_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d.key]: 70 }), {} as Record<FbDimensionKey, number>)
   );
-  const [fbScore, setFbScore]           = useState(70);
+  const [fbScore, setFbScore] = useState(70);
   const [fbScoreTouched, setFbScoreTouched] = useState(false);
-  const [fbFeedback, setFbFeedback]     = useState("");
+  const [fbFeedback, setFbFeedback] = useState("");
   const [fbTranscript, setFbTranscript] = useState("");
   const [fbSubmitting, setFbSubmitting] = useState(false);
-  const [fbError, setFbError]           = useState<string | null>(null);
+  const [fbError, setFbError] = useState<string | null>(null);
 
   // ── Timer ──
   useEffect(() => {
@@ -218,7 +218,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
         });
 
         socket.on("ice-candidate", async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
-          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { }
         });
 
         pc.onicecandidate = (ev) => {
@@ -243,11 +243,11 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   }, [meetingRoomId]);
 
   function cleanup() {
-    try { socketRef.current?.emit("leave-room", { roomId: meetingRoomId }); } catch {}
-    try { socketRef.current?.disconnect(); } catch {}
-    try { pcRef.current?.close(); } catch {}
-    try { recorderRef.current?.state !== "inactive" && recorderRef.current?.stop(); } catch {}
-    try { localStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+    try { socketRef.current?.emit("leave-room", { roomId: meetingRoomId }); } catch { }
+    try { socketRef.current?.disconnect(); } catch { }
+    try { pcRef.current?.close(); } catch { }
+    try { recorderRef.current?.state !== "inactive" && recorderRef.current?.stop(); } catch { }
+    try { localStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { }
   }
 
   async function endCall() {
@@ -348,7 +348,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
           <button
             onClick={() => {
               if (remoteVideoRef.current) {
-                remoteVideoRef.current.play().then(() => setAudioBlocked(false)).catch(() => {});
+                remoteVideoRef.current.play().then(() => setAudioBlocked(false)).catch(() => { });
               }
             }}
             className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg animate-pulse hover:bg-accent/80 transition-colors"
@@ -461,11 +461,10 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
           onClick={toggleMic}
           disabled={!isActive}
           title={micOn ? "Mute mic" : "Unmute mic"}
-          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
-            micOn
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${micOn
               ? "bg-white/10 hover:bg-white/20 text-white"
               : "bg-destructive/80 hover:bg-destructive text-white"
-          }`}
+            }`}
         >
           {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
         </button>
@@ -475,11 +474,10 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
           onClick={toggleCam}
           disabled={!isActive}
           title={camOn ? "Turn off camera" : "Turn on camera"}
-          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
-            camOn
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${camOn
               ? "bg-white/10 hover:bg-white/20 text-white"
               : "bg-destructive/80 hover:bg-destructive text-white"
-          }`}
+            }`}
         >
           {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
         </button>
@@ -627,7 +625,7 @@ async function uploadRecording(bookingId: string, blob: Blob): Promise<string> {
   const token = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
   const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/upload-recording`, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' } : { 'ngrok-skip-browser-warning': 'true' },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   });
 
