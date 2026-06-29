@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Calendar, CheckCircle, Search, Loader2, AlertCircle, RefreshCw, Clock, XCircle } from "lucide-react"
+import { Bot, Calendar, CheckCircle, Search, Loader2, AlertCircle, RefreshCw, Clock, Users, XCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,12 +15,13 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination"
 import Link from "next/link"
-import { interviewApi, type InterviewSession } from "@/lib/api"
+import { interviewApi, liveApi, type InterviewSession } from "@/lib/api"
 
 interface DisplaySession {
   id: string
   sessionType: string
   jobTitle: string
+  interviewKind: "ai" | "live"
   status: string
   score?: number
   date: string
@@ -31,10 +32,22 @@ function mapSessionToDisplay(session: InterviewSession): DisplaySession {
     id: session._id,
     sessionType: session.session_type || "mixed",
     jobTitle: session.jobTitle || "",
+    interviewKind: "ai",
     status: session.status,
     score: session.overall_score,
     date: session.createdAt,
   }
+}
+
+const LIVE_COMPLETED_STATUS = "results_ready"
+const LIVE_ONGOING_STATUSES = ["meeting_started", "meeting_scheduled", "evaluating_ai", "meeting_completed"]
+const LIVE_CANCELLED_STATUSES = ["rejected", "failed_no_show", "refunded"]
+
+function mapLiveStatus(status: string): string {
+  if (status === LIVE_COMPLETED_STATUS) return "completed"
+  if (LIVE_ONGOING_STATUSES.includes(status)) return "ongoing"
+  if (LIVE_CANCELLED_STATUSES.includes(status)) return "cancelled"
+  return "pending"
 }
 
 function getStatusIcon(status: string) {
@@ -147,27 +160,65 @@ export function HistoryContent() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const loadHistory = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+  const loadHistory = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true)
+    if (!silent) setError(null)
 
     try {
-      const response = await interviewApi.getMySessions({ limit: 50 })
+      const [aiRes, liveRes] = await Promise.allSettled([
+        interviewApi.getMySessions({ limit: 100 }),
+        liveApi.getMyBookings(),
+      ])
 
-      if (response.success && response.data) {
-        const displaySessions = response.data.sessions.map(mapSessionToDisplay)
-        setSessions(displaySessions)
-      }
+      const aiSessions: DisplaySession[] =
+        aiRes.status === "fulfilled" && aiRes.value.success
+          ? aiRes.value.data.sessions.map(mapSessionToDisplay)
+          : []
+
+      const liveSessions: DisplaySession[] =
+        liveRes.status === "fulfilled" && liveRes.value.success
+          ? (liveRes.value.data || []).map((b) => ({
+              id: b._id,
+              sessionType: "live_interview",
+              jobTitle: b.role || "",
+              interviewKind: "live" as const,
+              status: mapLiveStatus(b.status),
+              score: b.combinedScore ?? b.aiReport?.overall_score ?? b.humanScore,
+              date: b.createdAt,
+            }))
+          : []
+
+      const merged = [...aiSessions, ...liveSessions].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      )
+      setSessions(merged)
     } catch (err) {
       console.error("Failed to load history:", err)
-      setError(err instanceof Error ? err.message : "Failed to load interview history")
+      if (!silent) setError(err instanceof Error ? err.message : "Failed to load interview history")
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
     loadHistory()
+  }, [loadHistory])
+
+  // Silently refetch when user switches back to this tab
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadHistory(true)
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => document.removeEventListener("visibilitychange", handleVisibility)
+  }, [loadHistory])
+
+  // Silent poll every 30 s while the tab is active
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") loadHistory(true)
+    }, 30000)
+    return () => clearInterval(id)
   }, [loadHistory])
 
   useEffect(() => {
@@ -176,10 +227,12 @@ export function HistoryContent() {
 
   const filteredHistory = sessions.filter((session) => {
     const q = searchQuery.toLowerCase()
+    const kindLabel = session.interviewKind === "live" ? "live ai human" : "ai interview"
     return (
       session.jobTitle.toLowerCase().includes(q) ||
       session.sessionType.toLowerCase().includes(q) ||
-      session.status.toLowerCase().includes(q)
+      session.status.toLowerCase().includes(q) ||
+      kindLabel.includes(q)
     )
   })
 
@@ -275,14 +328,31 @@ export function HistoryContent() {
                     {getStatusIcon(session.status)}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-card-foreground truncate">
-                      {session.jobTitle || `${session.sessionType.replace(/_/g, " ")} Interview`}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-card-foreground truncate">
+                        {session.jobTitle || `${session.sessionType.replace(/_/g, " ")} Interview`}
+                      </p>
+                      {session.interviewKind === "live" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
+                          <Users className="h-3 w-3" />
+                          Live · AI + Human
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                          <Bot className="h-3 w-3" />
+                          AI Interview
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5 flex-wrap">
                       <Calendar className="h-3 w-3 shrink-0" />
                       <span>{new Date(session.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>
-                      <span>•</span>
-                      <span className="capitalize">{session.sessionType.replace(/_/g, " ")}</span>
+                      {session.sessionType !== "live_interview" && (
+                        <>
+                          <span>•</span>
+                          <span className="capitalize">{session.sessionType.replace(/_/g, " ")}</span>
+                        </>
+                      )}
                       <span className="hidden sm:inline">•</span>
                       <span
                         className={`hidden sm:inline px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(session.status)}`}
@@ -301,12 +371,16 @@ export function HistoryContent() {
                     </div>
                   )}
                   {session.status === "completed" ? (
-                    <Link href={`/interview/results/${session.id}`}>
+                    <Link href={
+                      session.interviewKind === "live"
+                        ? `/live-interview/results/${session.id}`
+                        : `/interview/results/${session.id}`
+                    }>
                       <Button variant="outline" size="sm" className="bg-transparent border-border/50 hover:border-accent/50 hover:text-accent transition-colors">
                         View Details
                       </Button>
                     </Link>
-                  ) : session.status === "ongoing" ? (
+                  ) : session.status === "ongoing" && session.interviewKind !== "live" ? (
                     <Link href={`/interview/session/${session.id}`}>
                       <Button variant="default" size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
                         Continue

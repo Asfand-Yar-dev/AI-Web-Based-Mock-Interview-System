@@ -19,6 +19,7 @@ interface DisplaySession {
   userId: string;
   jobTitle: string;
   sessionType?: string;
+  interviewKind?: "ai" | "live";
   skills: string[];
   status: "pending" | "in-progress" | "completed";
   score?: number;
@@ -66,32 +67,31 @@ export default function DashboardPage() {
     recentSessions: [] as DisplaySession[],
   });
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (silent = false) => {
     if (!isAuthenticated) return;
-    
-    setIsLoading(true);
+
+    if (!silent) setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Fetch stats from backend
       const statsResponse = await authApi.getStats();
-      
+
       if (statsResponse.success && statsResponse.data) {
         const { totalInterviews, averageScore, confidenceImprovement, currentStreak, recentSessions } = statsResponse.data;
-        
-        // Map recent sessions to display format
+
         const mappedSessions: DisplaySession[] = recentSessions.map(session => ({
           id: session.id,
           userId: '',
           jobTitle: session.jobTitle || 'Interview Session',
           sessionType: session.sessionType,
+          interviewKind: (session as any).interviewKind,
           skills: [],
           status: session.status === 'ongoing' ? 'in-progress' : session.status as DisplaySession['status'],
           score: session.score,
           createdAt: session.date,
           completedAt: undefined,
         }));
-        
+
         setStats({
           totalInterviews,
           averageScore,
@@ -102,32 +102,50 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("Failed to load dashboard:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dashboard data");
-      
-      // Set default stats on error
-      setStats({
-        totalInterviews: 0,
-        averageScore: 0,
-        confidenceImprovement: 0,
-        currentStreak: 0,
-        recentSessions: [],
-      });
+      if (!silent) {
+        setError(err instanceof Error ? err.message : "Failed to load dashboard data");
+        setStats({ totalInterviews: 0, averageScore: 0, confidenceImprovement: 0, currentStreak: 0, recentSessions: [] });
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    // Wait for auth check to complete
     if (authLoading) return;
-    
-    // Only load data if authenticated
     if (isAuthenticated) {
       loadDashboardData();
     } else {
       setIsLoading(false);
     }
   }, [authLoading, isAuthenticated, loadDashboardData]);
+
+  // Silently refetch when user switches back to this tab (e.g. after booking)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadDashboardData(true);
+    };
+    // Also listen for booking_updated_at written by the booking success page
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "booking_updated_at") loadDashboardData(true);
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [isAuthenticated, loadDashboardData]);
+
+  // Silent poll every 30 s while tab is active
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") loadDashboardData(true);
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isAuthenticated, loadDashboardData]);
 
   // Show loading while checking auth or loading data
   if (authLoading || isLoading) {

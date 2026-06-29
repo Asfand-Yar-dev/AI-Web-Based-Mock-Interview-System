@@ -882,6 +882,30 @@ export const adminApi = {
 };
 
 // =============================================================================
+// LIVE (HUMAN + AI) BOOKINGS API
+// =============================================================================
+
+export const liveApi = {
+  async getMyBookings(): Promise<{
+    success: boolean;
+    data: Array<{
+      _id: string;
+      role: string;
+      domain: string;
+      skills: string[];
+      status: string;
+      combinedScore?: number;
+      humanScore?: number;
+      aiReport?: { overall_score?: number };
+      createdAt: string;
+      durationMinutes?: number;
+    }>;
+  }> {
+    return apiRequest(API_ENDPOINTS.LIVE.MY_BOOKINGS, { requireAuth: true });
+  },
+};
+
+// =============================================================================
 // HEALTH CHECK
 // =============================================================================
 
@@ -918,6 +942,7 @@ export const emailVerificationApi = {
 export const api = {
   auth: authApi,
   interviews: interviewApi,
+  live: liveApi,
   questions: questionsApi,
   answers: answersApi,
   admin: adminApi,

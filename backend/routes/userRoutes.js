@@ -59,8 +59,9 @@ const { registerValidation, loginValidation } = require('../middleware/validatio
 
 // Import models for stats endpoint
 const InterviewSession = require('../models/InterviewSession');
+const LiveBooking = require('../models/LiveBooking');
 const User = require('../models/User');
-const { HTTP_STATUS, USER_PLANS } = require('../config/constants');
+const { HTTP_STATUS, USER_PLANS, LIVE_BOOKING_STATUS } = require('../config/constants');
 
 /**
  * =============================================================================
@@ -218,22 +219,54 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
   const completedCount = stats?.completedCount || 0;
   const averageScore = completedCount > 0 ? Math.round(stats.totalScore / completedCount) : 0;
 
-  // Get recent 5 sessions (separate lightweight query)
-  const recentSessions = await InterviewSession.find({ user_id: userId })
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .select('session_type jobTitle status overall_score createdAt duration')
-    .lean();
+  // Get recent sessions — both AI practice and live (human+AI) interviews
+  const [aiSessions, liveBookings] = await Promise.all([
+    InterviewSession.find({ user_id: userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('session_type jobTitle status overall_score createdAt duration')
+      .lean(),
+    LiveBooking.find({ applicantId: userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('role domain status combinedScore humanScore aiReport createdAt durationMinutes')
+      .lean(),
+  ]);
 
-  const recentSessionsFormatted = recentSessions.map(session => ({
-    id: session._id,
-    sessionType: session.session_type,
-    jobTitle: session.jobTitle || '',
-    status: session.status,
-    score: session.overall_score,
-    date: session.createdAt,
-    duration: session.duration,
+  const mapLiveStatus = (s) => {
+    if (s === LIVE_BOOKING_STATUS.RESULTS_READY) return 'completed';
+    if ([LIVE_BOOKING_STATUS.MEETING_STARTED, LIVE_BOOKING_STATUS.MEETING_SCHEDULED,
+         LIVE_BOOKING_STATUS.EVALUATING_AI, LIVE_BOOKING_STATUS.MEETING_COMPLETED].includes(s)) return 'ongoing';
+    if ([LIVE_BOOKING_STATUS.REJECTED, LIVE_BOOKING_STATUS.FAILED_NO_SHOW,
+         LIVE_BOOKING_STATUS.REFUNDED].includes(s)) return 'cancelled';
+    return 'pending';
+  };
+
+  const formattedAi = aiSessions.map(s => ({
+    id: s._id,
+    sessionType: s.session_type,
+    jobTitle: s.jobTitle || '',
+    status: s.status,
+    score: s.overall_score,
+    date: s.createdAt,
+    duration: s.duration,
+    interviewKind: 'ai',
   }));
+
+  const formattedLive = liveBookings.map(b => ({
+    id: b._id,
+    sessionType: 'live_interview',
+    jobTitle: b.role || '',
+    status: mapLiveStatus(b.status),
+    score: b.combinedScore ?? b.aiReport?.overall_score ?? b.humanScore ?? null,
+    date: b.createdAt,
+    duration: b.durationMinutes,
+    interviewKind: 'live',
+  }));
+
+  const recentSessionsFormatted = [...formattedAi, ...formattedLive]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5);
 
   // Calculate improvement from recent completed sessions
   let confidenceImprovement = 0;

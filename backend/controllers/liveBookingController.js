@@ -26,6 +26,24 @@ const {
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
 const meetingUrlFor = (roomId) => `${PUBLIC_APP_URL}/live-interview/room/${roomId}`;
 
+// ── Real-time helper ───────────────────────────────────────────────────────
+// Lazy-require so the controller works even if socket.io isn't installed yet.
+function emitBookingChanged(userId) {
+  try {
+    const { emitToUser } = require('../services/signalingService');
+    emitToUser(String(userId), 'booking:changed', {});
+  } catch (_) { /* socket.io not installed — silently skip */ }
+}
+
+// Emit to both sides of a booking (applicant + interviewer's user account).
+async function notifyBothParties(booking) {
+  emitBookingChanged(booking.applicantId);
+  try {
+    const intvProfile = await Interviewer.findById(booking.interviewerId).select('userId').lean();
+    if (intvProfile?.userId) emitBookingChanged(intvProfile.userId);
+  } catch (_) {}
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 async function _interviewerIdFor(userId) {
@@ -142,6 +160,9 @@ async function requestBooking(req, res) {
 
   logger.info(`[booking] New booking ${booking._id} → interviewer ${finalInterviewerId} @ ${scheduledTime} (pending_approval)`);
 
+  // Push real-time notification to the interviewer so the request appears instantly
+  notifyBothParties(booking).catch(() => {});
+
   res.status(HTTP_STATUS.CREATED).json({
     success: true,
     message: 'Booking request sent. Waiting for interviewer approval.',
@@ -185,6 +206,8 @@ async function respondToBooking(req, res) {
     await booking.save();
 
     logger.info(`[booking] ${booking._id} accepted by interviewer ${intvId}`);
+
+    emitBookingChanged(booking.applicantId);
 
     // Notify the applicant to pay
     const checkoutUrl = `${PUBLIC_APP_URL}/live-interview/checkout/${booking._id}`;
@@ -232,6 +255,7 @@ async function respondToBooking(req, res) {
     await booking.save();
 
     logger.info(`[booking] ${booking._id} declined by ${intvId} — reassigned to ${nextInterviewer._id}`);
+    emitBookingChanged(booking.applicantId);
 
     return res.status(HTTP_STATUS.OK).json({
       success: true,
@@ -245,6 +269,7 @@ async function respondToBooking(req, res) {
   await booking.save();
 
   logger.info(`[booking] ${booking._id} rejected by interviewer ${intvId} — no other interviewer available${note ? ` — reason: ${note}` : ''}`);
+  emitBookingChanged(booking.applicantId);
 
   if (applicant?.email) {
     sendBookingRejected({
@@ -359,6 +384,9 @@ async function createCheckout(req, res) {
     // Update to meeting_scheduled
     booking.status = LIVE_BOOKING_STATUS.MEETING_SCHEDULED;
     await booking.save();
+
+    // Notify both parties in real time
+    notifyBothParties(booking).catch(() => {});
 
     // Send confirmation emails to both parties
     Promise.all([
@@ -480,6 +508,7 @@ async function joinMeeting(req, res) {
   }
 
   await booking.save();
+  notifyBothParties(booking).catch(() => {});
   res.status(HTTP_STATUS.OK).json({
     success: true,
     data: { status: booking.status, meetingUrl: meetingUrlFor(booking.meetingRoomId) },
@@ -508,6 +537,7 @@ async function endMeeting(req, res) {
   booking.status        = LIVE_BOOKING_STATUS.MEETING_COMPLETED;
   booking.meetingEndedAt = new Date();
   await booking.save();
+  notifyBothParties(booking).catch(() => {});
 
   res.status(HTTP_STATUS.OK).json({ success: true, data: { status: booking.status } });
 }
@@ -562,6 +592,7 @@ async function handleAiAnalysisWebhook(req, res) {
   }
 
   if (booking && booking.status === LIVE_BOOKING_STATUS.RESULTS_READY) {
+    emitBookingChanged(booking.applicantId);
     const applicant = await User.findById(booking.applicantId);
     if (applicant?.email) {
       sendResultsReady({
@@ -634,53 +665,54 @@ async function submitInterviewerFeedback(req, res) {
   }
 
   // ── AI Analysis (synchronous — ~3-10 s Groq call) ─────────────────────────
-  if (cleanTranscript) {
-    try {
-      const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-      const aiRes = await fetch(`${AI_URL}/api/ai/evaluate-live-interview`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role:              booking.role,
-          domain:            booking.domain,
-          skills:            booking.skills || [],
-          transcript:        cleanTranscript,
-          interviewer_score: humanScore,
-        }),
-        signal: AbortSignal.timeout(20000), // 20 s max — Groq is fast
-      });
+  // Runs regardless of whether the interviewer provided a transcript.
+  try {
+    const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    const aiPayload = {
+      role:              booking.role,
+      domain:            booking.domain,
+      skills:            booking.skills || [],
+      interviewer_score: humanScore,
+    };
+    if (cleanTranscript) aiPayload.transcript = cleanTranscript;
 
-      if (aiRes.ok) {
-        const aiData = await aiRes.json();
-        if (aiData.status === 'success') {
-          // Store the full AI report
-          booking.aiReport      = aiData;
-          booking.aiCompletedAt = new Date();
+    const aiRes = await fetch(`${AI_URL}/api/ai/evaluate-live-interview`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiPayload),
+      signal: AbortSignal.timeout(20000), // 20 s max — Groq is fast
+    });
 
-          // ── Combined score: AI 50% + Human 50% ────────────────────────────
-          const aiOverall = Number(aiData.overall_score) || 0;
-          booking.combinedScore = Math.round((aiOverall * 0.5) + (humanScore * 0.5));
+    if (aiRes.ok) {
+      const aiData = await aiRes.json();
+      if (aiData.status === 'success') {
+        booking.aiReport      = aiData;
+        booking.aiCompletedAt = new Date();
 
-          logger.info(
-            `[feedback] AI analysis complete for ${booking._id}: ` +
-            `ai=${aiOverall}, human=${humanScore}, combined=${booking.combinedScore}`
-          );
-        } else {
-          logger.warn(`[feedback] AI returned non-success for ${booking._id}: ${aiData.message}`);
-        }
+        // ── Combined score: AI 50% + Human 50% ────────────────────────────
+        const aiOverall = Number(aiData.overall_score) || 0;
+        booking.combinedScore = Math.round((aiOverall * 0.5) + (humanScore * 0.5));
+
+        logger.info(
+          `[feedback] AI analysis complete for ${booking._id}: ` +
+          `ai=${aiOverall}, human=${humanScore}, combined=${booking.combinedScore}`
+        );
       } else {
-        const errText = await aiRes.text().catch(() => '');
-        logger.warn(`[feedback] AI gateway responded ${aiRes.status} for ${booking._id}: ${errText}`);
+        logger.warn(`[feedback] AI returned non-success for ${booking._id}: ${aiData.message}`);
       }
-    } catch (aiErr) {
-      // Non-blocking — human score is always saved even if AI fails
-      logger.error(`[feedback] AI evaluation failed for ${booking._id}: ${aiErr.message}`);
+    } else {
+      const errText = await aiRes.text().catch(() => '');
+      logger.warn(`[feedback] AI gateway responded ${aiRes.status} for ${booking._id}: ${errText}`);
     }
+  } catch (aiErr) {
+    // Non-blocking — human score is always saved even if AI fails
+    logger.error(`[feedback] AI evaluation failed for ${booking._id}: ${aiErr.message}`);
   }
 
   // ── Always mark results ready once human feedback is submitted ────────────
   booking.status = LIVE_BOOKING_STATUS.RESULTS_READY;
   await booking.save();
+  emitBookingChanged(booking.applicantId);
 
   // ── Notify applicant ──────────────────────────────────────────────────────
   const applicant = await User.findById(booking.applicantId);

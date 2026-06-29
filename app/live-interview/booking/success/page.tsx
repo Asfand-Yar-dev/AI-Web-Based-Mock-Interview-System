@@ -14,6 +14,11 @@ function BookingSuccessContent() {
   const [booking, setBooking]   = useState<any>(null);
   const [loading, setLoading]   = useState(!!bookingId);
 
+  // Signal the dashboard/history to refetch on next visibility change
+  useEffect(() => {
+    localStorage.setItem("booking_updated_at", Date.now().toString());
+  }, []);
+
   // Fetch the booking to decide whether to link to "Join Room" or "View Results"
   useEffect(() => {
     if (!bookingId) return;

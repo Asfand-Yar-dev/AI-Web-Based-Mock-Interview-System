@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { ArrowRight, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
+import { ArrowRight, Bot, Calendar, CheckCircle, Clock, Users, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface DisplaySession {
@@ -10,6 +10,7 @@ interface DisplaySession {
   userId: string
   jobTitle: string
   sessionType?: string
+  interviewKind?: "ai" | "live"
   skills: string[]
   status: "pending" | "in-progress" | "completed" | "ongoing" | "cancelled"
   score?: number
@@ -147,9 +148,22 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
                 {getStatusIcon(session.status)}
               </div>
               <div className="min-w-0">
-                <p className="font-medium text-card-foreground truncate">
-                  {session.jobTitle || "Interview Session"}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium text-card-foreground truncate">
+                    {session.jobTitle || "Interview Session"}
+                  </p>
+                  {session.interviewKind === "live" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
+                      <Users className="h-3 w-3" />
+                      Live · AI + Human
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                      <Bot className="h-3 w-3" />
+                      AI Interview
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5 flex-wrap">
                   <Calendar className="h-3 w-3 shrink-0" />
                   <span>
@@ -159,7 +173,7 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
                       day: "numeric",
                     })}
                   </span>
-                  {session.sessionType && (
+                  {session.sessionType && session.sessionType !== "live_interview" && (
                     <>
                       <span>•</span>
                       <span className="capitalize">{session.sessionType.replace(/_/g, " ")}</span>
@@ -183,7 +197,11 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
                 </div>
               )}
               {session.status === "completed" ? (
-                <Link href={`/interview/results/${session.id}`}>
+                <Link href={
+                  session.interviewKind === "live"
+                    ? `/live-interview/results/${session.id}`
+                    : `/interview/results/${session.id}`
+                }>
                   <Button
                     variant="outline"
                     size="sm"
@@ -193,11 +211,13 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
                   </Button>
                 </Link>
               ) : session.status === "in-progress" || session.status === "ongoing" ? (
-                <Link href={`/interview/session/${session.id}`}>
-                  <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
-                    Continue
-                  </Button>
-                </Link>
+                session.interviewKind === "live" ? null : (
+                  <Link href={`/interview/session/${session.id}`}>
+                    <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
+                      Continue
+                    </Button>
+                  </Link>
+                )
               ) : null}
             </div>
           </motion.div>
