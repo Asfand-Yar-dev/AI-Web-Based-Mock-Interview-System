@@ -2,11 +2,11 @@
 
 import type React from "react"
 import { Suspense, useState, useEffect, useCallback } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
-  Sparkles,
   LayoutDashboard,
   CalendarDays,
   UserCircle,
@@ -75,11 +75,15 @@ function InterviewerLayoutInner({
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link href="/interviewer-dashboard" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
-            <Sparkles className="h-4 w-4 text-accent-foreground" />
-          </div>
-          <span className="font-display font-semibold text-foreground">Intervexa</span>
+        <Link href="/interviewer-dashboard" className="flex items-center gap-1.5">
+          <Image
+            src="/Logo_with_no_background.png"
+            alt="Intervexa"
+            width={64}
+            height={64}
+            className="object-contain"
+          />
+          <span className="font-display text-[22px] font-bold leading-none text-foreground">Intervexa</span>
         </Link>
         <div className="ml-auto">
           <ThemeToggle />
@@ -183,12 +187,16 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
-      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
-        <Link href="/interviewer-dashboard" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
-            <Sparkles className="h-4 w-4 text-accent-foreground" />
-          </div>
-          <span className="font-display font-semibold text-sidebar-foreground">Intervexa</span>
+      <div className="flex h-20 items-center justify-between border-b border-sidebar-border px-5">
+        <Link href="/interviewer-dashboard" className="flex items-center gap-1.5">
+          <Image
+            src="/Logo_with_no_background.png"
+            alt="Intervexa"
+            width={64}
+            height={64}
+            className="object-contain"
+          />
+          <span className="font-display text-[22px] font-bold leading-none text-sidebar-foreground">Intervexa</span>
         </Link>
         {onClose && (
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-sidebar-accent lg:hidden">

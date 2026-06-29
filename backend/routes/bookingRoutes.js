@@ -58,6 +58,78 @@ router.post('/:id/feedback',                   authenticate, asyncHandler(ctrl.s
 router.post('/:id/no-show',                    authenticate, authorize('admin'), asyncHandler(ctrl.markNoShow));
 
 
+// ── Real-time facial frame capture (sent every ~15 s during the call) ────────
+// The frontend captures a JPEG frame from the candidate's local video, sends it
+// here, we proxy it to the AI gateway /api/ai/analyze-face, accumulate the score
+// on the booking, and return the result so the UI can show a live indicator.
+const frameCapture = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },          // 2 MB per frame
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files accepted for frame capture'), false);
+  },
+});
+
+const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+
+router.post(
+  '/:id/frame-capture',
+  authenticate,
+  frameCapture.single('frame'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'No frame image provided' });
+    }
+
+    const booking = await LiveBooking.findById(req.params.id).select(
+      'applicantId interviewerId status realtimeFaceScores'
+    );
+    if (!booking) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Booking not found' });
+    }
+    if (!['meeting_scheduled', 'meeting_started'].includes(booking.status)) {
+      return res.status(HTTP_STATUS.OK).json({ success: true, data: { skipped: true } });
+    }
+
+    // Proxy frame to AI gateway using native Node 18 fetch + FormData
+    try {
+      const form = new FormData();
+      const frameBlob = new Blob([req.file.buffer], { type: req.file.mimetype || 'image/jpeg' });
+      form.append('video', frameBlob, 'frame.jpg');
+
+      const aiRes = await fetch(`${AI_URL}/api/ai/analyze-face`, {
+        method: 'POST',
+        body: form,
+        signal: AbortSignal.timeout(12000),
+      });
+
+      if (aiRes.ok) {
+        const data = await aiRes.json();
+        const score = typeof data.overall_score === 'number' ? data.overall_score : null;
+
+        if (score !== null) {
+          if (!Array.isArray(booking.realtimeFaceScores)) booking.realtimeFaceScores = [];
+          booking.realtimeFaceScores.push({
+            score,
+            emotion: data.dominant_emotion || data.session_feedback?.dominant_emotion || 'neutral',
+            capturedAt: new Date(),
+          });
+          await booking.save();
+          logger.info(`[frame-capture] booking=${booking._id} face_score=${score}`);
+        }
+
+        return res.status(HTTP_STATUS.OK).json({ success: true, data });
+      }
+    } catch (err) {
+      logger.warn(`[frame-capture] AI proxy failed for ${booking._id}: ${err.message}`);
+    }
+
+    // AI gateway unavailable — silently succeed so the call isn't disrupted
+    return res.status(HTTP_STATUS.OK).json({ success: true, data: { skipped: true } });
+  })
+);
+
 // ── Recording upload (dev / FYP path without S3) ──────────────────────────────
 const recordingsDir = path.resolve(__dirname, '..', 'uploads', 'live-recordings');
 if (!fs.existsSync(recordingsDir)) fs.mkdirSync(recordingsDir, { recursive: true });

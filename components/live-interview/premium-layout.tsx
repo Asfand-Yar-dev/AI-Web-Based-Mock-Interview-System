@@ -6,8 +6,9 @@
  */
 
 import type React from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { Sparkles, CalendarDays, ArrowLeft } from "lucide-react"
+import { CalendarDays, ArrowLeft } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { motion } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
@@ -53,11 +54,15 @@ export function PremiumLayout({
               {backLabel}
             </Link>
           ) : (
-            <Link href={homeHref} className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-                <Sparkles className="h-4 w-4 text-accent-foreground" />
-              </div>
-              <span className="font-semibold text-foreground">Intervexa</span>
+            <Link href={homeHref} className="flex items-center gap-1.5">
+              <Image
+                src="/Logo_with_no_background.png"
+                alt="Intervexa"
+                width={64}
+                height={64}
+                className="object-contain"
+              />
+              <span className="font-display text-[22px] font-bold leading-none text-foreground">Intervexa</span>
             </Link>
           )}
         </div>

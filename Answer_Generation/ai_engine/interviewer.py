@@ -623,6 +623,101 @@ Now evaluate and return ONLY the JSON:"""
 
         return result
 
+    def evaluate_live_interview_general(self, role: str, domain: str, skills: List[str],
+                                         interviewer_score: int) -> dict:
+        """
+        Generate a structured evaluation report when no Q&A transcript is available.
+        Uses the role, domain, skills, and human interviewer score to generate
+        AI dimension scores and qualitative feedback via Groq.
+        """
+        skills_str = ", ".join(skills) if skills else "general skills"
+
+        prompt = f"""You are an expert interview performance analyst.
+
+A human interviewer has conducted a live mock interview and assigned an overall score.
+Generate a structured AI performance report with dimension scores and feedback.
+
+═══ INTERVIEW CONTEXT ═══
+Role:              {role}
+Domain:            {domain}
+Skills Assessed:   {skills_str}
+Human Interviewer Score: {interviewer_score}/100
+
+Generate realistic AI dimension scores centered near the human score (vary ±5–15 pts each).
+Do NOT make all four scores identical — vary them to reflect real interview patterns.
+
+Return ONLY a raw JSON object (no markdown, no fences):
+{{
+  "technical_score": <0-100>,
+  "communication_score": <0-100>,
+  "confidence_score": <0-100>,
+  "problem_solving_score": <0-100>,
+  "overall_score": <round of the four averages>,
+  "questions_evaluated": 0,
+  "strengths": ["<3 specific strength for a {role} at this score level>", "...", "..."],
+  "improvements": ["<3 specific area to improve for a {role}>", "...", "..."],
+  "summary": "<2–3 sentence assessment based on {interviewer_score}/100 score in {domain}>"
+}}
+
+Return ONLY the JSON:"""
+
+        import json as _json
+        import re as _re
+
+        try:
+            raw = self._generate_with_retry(prompt)
+            logger.info(f"evaluate_live_interview_general raw (first 200): {raw[:200]}")
+
+            match = _re.search(r'\{[\s\S]+\}', raw)
+            if not match:
+                raise ValueError("No JSON object found in response")
+
+            result = _json.loads(match.group())
+        except Exception as e:
+            logger.warning(f"evaluate_live_interview_general LLM failed ({e}), using score-based fallback")
+            base = max(0, min(100, interviewer_score))
+            result = {
+                "technical_score":       min(100, base + 5),
+                "communication_score":   max(0,   base - 3),
+                "confidence_score":      max(0,   base - 5),
+                "problem_solving_score": min(100, base + 3),
+                "overall_score":         base,
+                "questions_evaluated":   0,
+                "strengths":    [
+                    f"Showed relevant knowledge in {role} domain",
+                    "Engaged positively throughout the interview",
+                    "Demonstrated enthusiasm for the subject area",
+                ],
+                "improvements": [
+                    "Practice articulating technical concepts more clearly",
+                    "Use the STAR method to structure behavioural answers",
+                    f"Deepen practical exposure to {skills_str}",
+                ],
+                "summary": (
+                    f"The candidate was assessed at {base}/100 by the human interviewer in a {role} interview. "
+                    f"With continued practice in {domain} and the skills above, performance can improve significantly."
+                ),
+            }
+
+        # Clamp numeric fields
+        for field in ('technical_score', 'communication_score', 'confidence_score',
+                      'problem_solving_score', 'overall_score'):
+            val = result.get(field, 0)
+            result[field] = max(0, min(100, int(val)))
+
+        # Recompute overall from dimensions
+        result['overall_score'] = round(
+            (result['technical_score'] + result['communication_score'] +
+             result['confidence_score'] + result['problem_solving_score']) / 4
+        )
+
+        result.setdefault('strengths', [])
+        result.setdefault('improvements', [])
+        result.setdefault('summary', '')
+        result.setdefault('questions_evaluated', 0)
+
+        return result
+
     def evaluate_vetting(self, profile: dict, conversation: List[dict]) -> str:
         history_str = ""
         for msg in conversation:

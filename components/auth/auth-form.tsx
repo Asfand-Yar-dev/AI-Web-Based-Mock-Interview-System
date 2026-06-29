@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,11 +148,15 @@ export function AuthForm({ mode }: AuthFormProps) {
           className="w-full max-w-md space-y-8"
         >
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent">
-              <Sparkles className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <span className="text-xl font-semibold text-foreground">
+          <Link href="/" className="flex items-center gap-1.5">
+            <Image
+              src="/Logo_with_no_background.png"
+              alt="Intervexa"
+              width={80}
+              height={80}
+              className="object-contain"
+            />
+            <span className="font-display text-[28px] font-bold leading-none text-foreground">
               Intervexa
             </span>
           </Link>
@@ -418,8 +423,14 @@ export function AuthForm({ mode }: AuthFormProps) {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="relative max-w-md space-y-8 text-center"
         >
-          <div className="mx-auto h-20 w-20 rounded-2xl bg-accent/20 flex items-center justify-center">
-            <Sparkles className="h-10 w-10 text-accent" />
+          <div className="mx-auto flex items-center justify-center">
+            <Image
+              src="/Logo_with_no_background.png"
+              alt="Intervexa"
+              width={96}
+              height={96}
+              className="object-contain"
+            />
           </div>
 
           <div className="space-y-4">

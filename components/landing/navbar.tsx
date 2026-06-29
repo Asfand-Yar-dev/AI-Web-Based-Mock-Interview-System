@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useState } from "react"
-import { Menu, X, Sparkles, ArrowRight } from "lucide-react"
+import { Menu, X, ArrowRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -24,11 +25,15 @@ export function Navbar() {
     >
       <div className="flex w-full items-center justify-between gap-6 px-8 py-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_22px_var(--glow)]">
-            <Sparkles className="h-[18px] w-[18px] text-accent-foreground" />
-          </div>
-          <span className="font-display text-[19px] font-semibold tracking-tight">Intervexa</span>
+        <Link href="/" className="flex items-center gap-1.5">
+          <Image
+            src="/Logo_with_no_background.png"
+            alt="Intervexa"
+            width={64}
+            height={64}
+            className="object-contain"
+          />
+          <span className="font-display text-[26px] font-bold tracking-tight leading-none">Intervexa</span>
         </Link>
 
         {/* Desktop nav */}

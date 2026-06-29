@@ -760,28 +760,43 @@ def evaluate_live_interview():
     role              = data.get("role", "Software Developer")
     domain            = data.get("domain", "technology")
     skills            = data.get("skills", [])
-    transcript        = data.get("transcript", "").strip()
+    transcript        = (data.get("transcript") or "").strip()
     interviewer_score = int(data.get("interviewer_score", 0))
 
-    if not transcript or len(transcript) < 20:
-        return jsonify({
-            "status": "error",
-            "message": "transcript must be at least 20 characters. Include the questions asked and candidate's answers."
-        }), 400
-
     try:
-        result = conductor.evaluate_live_interview(
-            role=role,
-            domain=domain,
-            skills=skills if isinstance(skills, list) else [],
-            transcript=transcript,
-            interviewer_score=interviewer_score,
-        )
+        has_transcript = len(transcript) >= 20
+
+        if has_transcript:
+            # Full transcript-based evaluation (most accurate)
+            result = conductor.evaluate_live_interview(
+                role=role,
+                domain=domain,
+                skills=skills if isinstance(skills, list) else [],
+                transcript=transcript,
+                interviewer_score=interviewer_score,
+            )
+            result["transcript_used"] = True
+        else:
+            # No transcript provided — generate a role/score-based evaluation
+            # so the AI report is always populated regardless of interviewer input.
+            result = conductor.evaluate_live_interview_general(
+                role=role,
+                domain=domain,
+                skills=skills if isinstance(skills, list) else [],
+                interviewer_score=interviewer_score,
+            )
+            result["transcript_used"] = False
+            logger.info(
+                f"[evaluate-live-interview] No transcript — used general evaluation "
+                f"for booking (role={role}, score={interviewer_score})"
+            )
+
         result["status"] = "success"
         logger.info(
             f"Live interview evaluation complete: overall={result.get('overall_score')} "
             f"(tech={result.get('technical_score')}, comm={result.get('communication_score')}, "
-            f"conf={result.get('confidence_score')}, ps={result.get('problem_solving_score')})"
+            f"conf={result.get('confidence_score')}, ps={result.get('problem_solving_score')}, "
+            f"transcript_used={result.get('transcript_used')})"
         )
         return jsonify(result), 200
     except Exception as e:
@@ -864,16 +879,21 @@ def analyze_answer_comprehensive():
                     result["nlp_feedback"] = f"AI Analysis Score: {score}"
                     logger.info(f"LLM Scoring complete: {score}")
                 except Exception as eval_err:
-                    logger.error(f"LLM scoring failed, falling back: {eval_err}")
-                    result["nlp_score"] = 75.0 if reference_answer else 0
-            # Fallback to Sentence-BERT if LLM scoring is somehow disabled
+                    logger.error(f"LLM scoring failed, falling back to Sentence-BERT: {eval_err}")
+                    # Try Sentence-BERT as a secondary fallback
+                    if nlp and reference_answer:
+                        try:
+                            score, feedback = nlp.evaluate_answer(transcript, reference_answer, question_text)
+                            result["nlp_score"] = score
+                            result["nlp_feedback"] = feedback
+                        except Exception:
+                            pass  # Leave nlp_score=0 — do not fabricate
+            # Sentence-BERT only (no LLM available)
             elif nlp and reference_answer:
                 score, feedback = nlp.evaluate_answer(transcript, reference_answer, question_text)
                 result["nlp_score"] = score
                 result["nlp_feedback"] = feedback
-            elif reference_answer:
-                result["nlp_score"] = 75.0
-                result["nlp_feedback"] = "Basic technical score applied (AI Analyzer bypass)."
+            # Nothing available — leave nlp_score=0, no fake score
 
         # Step 3: Voice Analysis
         vocal = _get_vocal_analyzer()
@@ -956,17 +976,24 @@ def analyze_video():
         { "booking_id": "...", "status": "failed", "reason": "..." }
     """
     data = request.get_json(silent=True) or {}
-    booking_id    = data.get("booking_id")
-    recording_url = data.get("recording_url", "")
-    callback_url  = data.get("callback_url")
+    booking_id      = data.get("booking_id")
+    recording_url   = data.get("recording_url", "")
+    callback_url    = data.get("callback_url")
     callback_secret = data.get("callback_secret", "")
+    # Interview context — used to make NLP evaluation role-aware
+    job_role  = (data.get("role")   or "").strip()
+    job_domain = (data.get("domain") or "").strip()
+    job_skills = data.get("skills") or []
 
     if not booking_id:
         return jsonify({"status": "error", "message": "booking_id is required"}), 400
     if not callback_url:
         return jsonify({"status": "error", "message": "callback_url is required"}), 400
 
-    logger.info(f"[analyze-video] Queued job for booking {booking_id}  url={recording_url}")
+    logger.info(
+        f"[analyze-video] Queued job for booking {booking_id} "
+        f"role={job_role!r} domain={job_domain!r} url={recording_url}"
+    )
 
     def run_pipeline():
         import urllib.request, urllib.error
@@ -994,6 +1021,24 @@ def analyze_video():
             else:
                 raise ValueError(f"Unsupported recording URL scheme: {recording_url!r}")
 
+            # ── Step 0: Transcribe audio from the recording (Whisper STT) ────
+            # Whisper supports .webm directly — no conversion needed.
+            transcript_text = ""
+            stt = _get_stt_engine()
+            if stt:
+                try:
+                    stt_result = stt.transcribe_audio(local_path)
+                    if stt_result.get("status") == "success" and stt_result.get("text", "").strip():
+                        transcript_text = stt_result["text"].strip()
+                        logger.info(
+                            f"[analyze-video] STT complete — {len(transcript_text)} chars, "
+                            f"~{len(transcript_text.split())} words"
+                        )
+                    else:
+                        logger.warning(f"[analyze-video] STT returned no text: {stt_result.get('message')}")
+                except Exception as stt_err:
+                    logger.warning(f"[analyze-video] Whisper transcription failed: {stt_err}")
+
             # ── Step 1: Voice / tonal analysis ───────────────────────────────
             voice_score = 0
             voice_data  = {}
@@ -1007,26 +1052,65 @@ def analyze_video():
                 except Exception as ve:
                     logger.warning(f"[analyze-video] Voice analysis failed: {ve}")
 
-            # ── Step 2: NLP / content stub (no transcript available) ─────────
-            # In a full setup the recording would be transcribed first with STT.
-            # For now we generate a contextual score via Gemini directly.
+            # ── Step 2: NLP analysis — full interview evaluation via Groq ────────
+            # Uses evaluate_live_interview() which scores the candidate's actual
+            # speech against the specific role/domain they interviewed for.
+            # Falls back to evaluate_live_interview_general() (role-based estimate)
+            # when Whisper couldn't produce a usable transcript.
+            # Never inserts fake numbers — if both paths fail, nlp_score stays 0
+            # and is excluded from the weighted average.
             nlp_score = 0
             nlp_data  = {}
             conductor = _get_interviewer()
             if conductor:
                 try:
-                    # Ask Gemini to provide a general performance score
-                    # (no transcript available without STT on video)
-                    nlp_score = 72  # reasonable default when no transcript
-                    nlp_data  = {
-                        "content_quality":       nlp_score,
-                        "structure":             70,
-                        "technical_depth":       68,
-                        "communication_clarity": 74,
-                    }
-                    logger.info(f"[analyze-video] NLP stub score: {nlp_score}")
+                    if transcript_text and len(transcript_text) >= 20:
+                        # Full evaluation: transcript + role context → Groq scores
+                        nlp_result = conductor.evaluate_live_interview(
+                            role=job_role   or "Software Developer",
+                            domain=job_domain or "technology",
+                            skills=job_skills  or [],
+                            transcript=transcript_text,
+                            interviewer_score=0,   # no human score yet at this stage
+                        )
+                        nlp_score = nlp_result.get("overall_score", 0)
+                        nlp_data  = {
+                            **nlp_result,
+                            "transcript":  transcript_text[:3000],
+                            "word_count":  len(transcript_text.split()),
+                            "stt_used":    True,
+                        }
+                        logger.info(
+                            f"[analyze-video] NLP (full eval) score={nlp_score} "
+                            f"role={job_role!r} transcript_words={len(transcript_text.split())}"
+                        )
+                    elif job_role:
+                        # No transcript but we know the role — use general estimator
+                        nlp_result = conductor.evaluate_live_interview_general(
+                            role=job_role,
+                            domain=job_domain or "technology",
+                            skills=job_skills or [],
+                            interviewer_score=0,
+                        )
+                        nlp_score = nlp_result.get("overall_score", 0)
+                        nlp_data  = {
+                            **nlp_result,
+                            "stt_used": False,
+                            "note": "Audio could not be transcribed — role-based estimate used",
+                        }
+                        logger.info(
+                            f"[analyze-video] NLP (general, no transcript) score={nlp_score} "
+                            f"role={job_role!r}"
+                        )
+                    else:
+                        # No transcript AND no role context — skip NLP entirely
+                        logger.warning(
+                            "[analyze-video] NLP skipped — no transcript and no role context"
+                        )
                 except Exception as ne:
                     logger.warning(f"[analyze-video] NLP analysis failed: {ne}")
+                    # Do NOT insert a fake score — leave nlp_score=0 so it is
+                    # excluded from the weighted average rather than polluting it
 
             # ── Step 3: Facial analysis (optional — may not have opencv) ─────
             facial_score = 0
@@ -1056,22 +1140,54 @@ def analyze_video():
                 except Exception as fe:
                     logger.warning(f"[analyze-video] Facial analysis failed: {fe}")
 
-            # ── Step 4: Compute overall score ─────────────────────────────────
-            scores  = [(voice_score, 0.4), (nlp_score, 0.4), (facial_score, 0.2)]
-            weights = [(s, w) for s, w in scores if s > 0]
-            if weights:
-                total_w = sum(w for _, w in weights)
-                overall = round(sum(s * w for s, w in weights) / total_w, 1)
+            # ── Step 4: Compute overall score (only from models that actually ran) ──
+            # Weight: NLP 50% (content quality), Voice 30% (delivery), Facial 20% (expression).
+            # A dimension is excluded from the average if its score is 0 (model failed/skipped)
+            # so a missing model never drags the score down artificially.
+            scored_dimensions = [
+                (nlp_score,    0.50),
+                (voice_score,  0.30),
+                (facial_score, 0.20),
+            ]
+            active = [(s, w) for s, w in scored_dimensions if s > 0]
+            if active:
+                total_w = sum(w for _, w in active)
+                overall = round(sum(s * w for s, w in active) / total_w, 1)
             else:
-                overall = 65  # default when no models available
+                # Nothing ran at all — surface this clearly rather than faking a number
+                overall = None
+                logger.warning(f"[analyze-video] All AI models failed for {booking_id} — no overall score")
 
             # ── Build structured report ───────────────────────────────────────
+            # evaluate_live_interview() returns dimension scores at the top level
+            # (technical_score, communication_score, confidence_score,
+            #  problem_solving_score, strengths, improvements, summary).
+            # Hoist those fields to the report root so the results page can read
+            # them directly as aiReport.technical_score etc.
             report = {
-                "overall_score":      overall,
-                "voice":              voice_data  or {"overall_score": voice_score},
-                "nlp":                nlp_data    or {"content_quality": nlp_score},
-                "facial":             facial_data or {"overall_score": facial_score},
-                "improvement_areas":  _build_improvement_areas(voice_score, nlp_score, facial_score),
+                "overall_score":        overall,
+                # Hoisted from NLP eval (evaluate_live_interview / _general)
+                "technical_score":      nlp_data.get("technical_score")      if nlp_data else None,
+                "communication_score":  nlp_data.get("communication_score")  if nlp_data else None,
+                "confidence_score":     nlp_data.get("confidence_score")     if nlp_data else None,
+                "problem_solving_score":nlp_data.get("problem_solving_score") if nlp_data else None,
+                "questions_evaluated":  nlp_data.get("questions_evaluated",  0) if nlp_data else 0,
+                "strengths":            nlp_data.get("strengths",   [])      if nlp_data else [],
+                "improvements":         nlp_data.get("improvements",[])      if nlp_data else [],
+                "summary":              nlp_data.get("summary",     "")      if nlp_data else "",
+                # Sub-reports from each model
+                "voice":         voice_data  if voice_score  > 0 else None,
+                "nlp":           nlp_data    if nlp_score    > 0 else None,
+                "facial":        facial_data if facial_score > 0 else None,
+                "facial_score":  facial_score if facial_score > 0 else None,
+                "voice_score":   voice_score  if voice_score  > 0 else None,
+                "models_ran": {
+                    "stt":    bool(transcript_text),
+                    "nlp":    nlp_score    > 0,
+                    "voice":  voice_score  > 0,
+                    "facial": facial_score > 0,
+                },
+                "improvement_areas": _build_improvement_areas(voice_score, nlp_score, facial_score),
             }
 
             logger.info(f"[analyze-video] Pipeline complete for {booking_id} → overall={overall}")

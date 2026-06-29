@@ -20,6 +20,8 @@ import {
   TrendingUp,
   MessageSquare,
   Sparkles,
+  Mic,
+  Video,
 } from "lucide-react";
 import { liveInterviewApi, type LiveBooking } from "@/lib/liveInterviewApi";
 import { Button } from "@/components/ui/button";
@@ -275,7 +277,7 @@ export default function LiveResultsPage() {
   const hasAiReport  = Boolean(booking.aiReport);
   const aiReport     = booking.aiReport as any;
 
-  // AI Dimension scores
+  // AI Dimension scores — NLP evaluation (from evaluate_live_interview)
   const aiScore      = typeof aiReport?.overall_score === "number" ? aiReport.overall_score : null;
   const commScore    = typeof aiReport?.communication_score === "number" ? aiReport.communication_score : null;
   const techScore    = typeof aiReport?.technical_score === "number" ? aiReport.technical_score : null;
@@ -285,6 +287,15 @@ export default function LiveResultsPage() {
   const strengths    = Array.isArray(aiReport?.strengths) ? aiReport.strengths : [];
   const improvements = Array.isArray(aiReport?.improvements) ? aiReport.improvements : [];
   const summary      = typeof aiReport?.summary === "string" ? aiReport.summary : "";
+
+  // Voice & facial scores from the recording pipeline
+  const voiceScore   = typeof aiReport?.voice_score  === "number" ? aiReport.voice_score  : null;
+  const facialScore  = typeof aiReport?.facial_score === "number" ? aiReport.facial_score : null;
+
+  // Which models actually ran (avoids showing "0" as if it were a real score)
+  const modelsRan    = aiReport?.models_ran as { stt?: boolean; nlp?: boolean; voice?: boolean; facial?: boolean } | undefined;
+  const sttUsed      = modelsRan?.stt ?? false;
+  const transcript   = typeof aiReport?.nlp?.transcript === "string" ? aiReport.nlp.transcript : null;
 
   // Scoring configuration
   const humanScore   = typeof booking.humanScore === "number" ? booking.humanScore : null;
@@ -319,14 +330,25 @@ export default function LiveResultsPage() {
                 <Brain className="h-5 w-5 text-accent" />
                 <h2 className="text-base font-semibold text-card-foreground">AI 360° Analysis</h2>
               </div>
-              {questionsEvaluated !== null && (
-                <div className="text-xs text-muted-foreground">
-                  Evaluated {questionsEvaluated} Q&amp;A pair{questionsEvaluated === 1 ? "" : "s"}
-                </div>
-              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                {questionsEvaluated !== null && questionsEvaluated > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    Evaluated {questionsEvaluated} Q&amp;A pair{questionsEvaluated === 1 ? "" : "s"}
+                  </div>
+                )}
+                {/* Badge row: which AI models ran */}
+                {modelsRan && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {modelsRan.stt    && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">STT</span>}
+                    {modelsRan.nlp    && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">NLP</span>}
+                    {modelsRan.voice  && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">Voice</span>}
+                    {modelsRan.facial && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">Facial</span>}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 4 Dimension cards */}
+            {/* NLP dimension cards (from full interview evaluation) */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {commScore !== null && (
                 <DimCard
@@ -366,6 +388,42 @@ export default function LiveResultsPage() {
               )}
             </div>
 
+            {/* Voice & Facial scores from the recording pipeline */}
+            {(voiceScore !== null || facialScore !== null) && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {voiceScore !== null && (
+                  <DimCard
+                    label="Voice Delivery"
+                    score={voiceScore}
+                    icon={Mic}
+                    color="text-accent"
+                    bg="bg-accent/5"
+                  />
+                )}
+                {facialScore !== null && (
+                  <DimCard
+                    label="Facial Expression"
+                    score={facialScore}
+                    icon={Video}
+                    color="text-warning"
+                    bg="bg-warning/5"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Transcribed speech (collapsible) */}
+            {sttUsed && transcript && (
+              <details className="rounded-xl border border-border/40 bg-secondary/20 p-4 text-sm">
+                <summary className="cursor-pointer font-medium text-muted-foreground select-none">
+                  Transcribed speech ({transcript.split(" ").length} words)
+                </summary>
+                <p className="mt-3 whitespace-pre-wrap text-card-foreground/80 leading-relaxed text-xs">
+                  {transcript}
+                </p>
+              </details>
+            )}
+
             {/* AI Summary */}
             {summary && (
               <div className="rounded-xl bg-secondary/30 px-4 py-3 text-sm text-card-foreground leading-relaxed">
@@ -382,7 +440,7 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
-        {/* Fallback when no AI analysis was run */}
+        {/* Fallback when AI analysis failed (e.g. AI service was unreachable) */}
         {!hasAiReport && isReady && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -391,9 +449,10 @@ export default function LiveResultsPage() {
           >
             <Brain className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-muted-foreground text-sm">AI Analysis Not Performed</p>
+              <p className="font-semibold text-muted-foreground text-sm">AI Analysis Unavailable</p>
               <p className="mt-0.5 text-xs text-muted-foreground/85">
-                The interviewer did not submit a Q&amp;A transcript for this interview. AI analysis requires Q&amp;A notes to evaluate candidate performance across technical and communication dimensions.
+                The AI analysis service could not be reached for this session. Your interviewer&apos;s
+                score and feedback are still shown below.
               </p>
             </div>
           </motion.div>

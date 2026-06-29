@@ -34,9 +34,13 @@ async function queueLiveAnalysis(bookingId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        booking_id: String(booking._id),
+        booking_id:    String(booking._id),
         recording_url: booking.recordingUrl,
-        callback_url: `${process.env.PUBLIC_APP_URL || 'http://localhost:5000'}/api/webhooks/ai-analysis-complete`,
+        // Interview context — used by AI gateway for NLP evaluation
+        role:   booking.role   || '',
+        domain: booking.domain || '',
+        skills: booking.skills || [],
+        callback_url:    `${process.env.PUBLIC_APP_URL || 'http://localhost:5000'}/api/webhooks/ai-analysis-complete`,
         callback_secret: process.env.AI_WEBHOOK_SECRET || '',
         timeout_minutes: LIVE_INTERVIEW.AI_PIPELINE_TIMEOUT_MINUTES,
       }),
@@ -63,12 +67,43 @@ async function queueLiveAnalysis(bookingId) {
 /**
  * Persist the AI report received via webhook and advance status if both
  * AI + human pieces are now in (Architecture §3 Step 5 — Feedback Lock).
+ *
+ * If the candidate accumulated real-time face scores during the call those
+ * are averaged and blended (50/50) with the recording-based facial score
+ * so the final figure reflects both in-call expressions AND post-call video.
  */
 async function applyAiReport(bookingId, report) {
   const booking = await LiveBooking.findById(bookingId);
   if (!booking) throw new Error(`LiveBooking ${bookingId} not found`);
 
-  booking.aiReport = report;
+  // ── Blend real-time facial scores into the report ──────────────────────────
+  // The analyze-video pipeline stores the facial score at report.facial.overall_score.
+  // We merge real-time captures (taken during the call) with the recording-based score.
+  const merged = { ...(report || {}) };
+  const rtScores = booking.realtimeFaceScores || [];
+  if (rtScores.length > 0) {
+    const rtAvg = Math.round(rtScores.reduce((s, e) => s + e.score, 0) / rtScores.length);
+    const recordingFacial =
+      typeof merged?.facial?.overall_score === 'number' ? merged.facial.overall_score : null;
+
+    const blended = recordingFacial != null
+      ? Math.round((rtAvg + recordingFacial) / 2)   // 50% real-time + 50% recording
+      : rtAvg;                                        // recording score absent — use real-time only
+
+    merged.realtime_face_score   = rtAvg;
+    merged.realtime_face_samples = rtScores.length;
+    // Patch both the nested facial object and the top-level facial_score field
+    merged.facial       = { ...(merged.facial || {}), overall_score: blended };
+    merged.facial_score = blended;
+
+    logger.info(
+      `[applyAiReport] booking=${bookingId} ` +
+      `rt_avg=${rtAvg} (${rtScores.length} samples) ` +
+      `recording=${recordingFacial} → blended=${blended}`
+    );
+  }
+
+  booking.aiReport = merged;
   booking.aiCompletedAt = new Date();
   booking.aiFailedReason = undefined;
 

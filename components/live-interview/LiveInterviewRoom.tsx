@@ -111,6 +111,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const chunksRef = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -119,6 +120,11 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
   const [elapsed, setElapsed] = useState(0); // seconds
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+
+  // ── Real-time facial analysis state (applicant only) ──
+  const [liveFaceScore, setLiveFaceScore] = useState<number | null>(null);
+  const [liveFaceEmotion, setLiveFaceEmotion] = useState<string>("");
+  const [faceCaptureActive, setFaceCaptureActive] = useState(false);
 
   // ── Interviewer feedback form (shown after the interviewer ends the call) ──
   const [fbDims, setFbDims] = useState<Record<FbDimensionKey, number>>(() =>
@@ -140,6 +146,65 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase]);
+
+  // ── Real-time facial frame capture (applicant only, every 15 s during call) ──
+  useEffect(() => {
+    if (phase !== "in-call" || !isApplicant) return;
+
+    const canvas = document.createElement("canvas");
+    setFaceCaptureActive(true);
+
+    const captureFrame = async () => {
+      const video = localVideoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      // Draw un-mirrored frame (CSS mirror is display-only)
+      ctx.drawImage(video, 0, 0);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          const form = new FormData();
+          form.append("frame", blob, "frame.jpg");
+          const token = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
+          const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/frame-capture`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            body: form,
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data && !json.data.skipped) {
+              const d = json.data;
+              const score = d.overall_score ?? d.session_feedback?.overall_score;
+              const emotion = d.dominant_emotion ?? d.session_feedback?.dominant_emotion ?? "";
+              if (typeof score === "number") setLiveFaceScore(Math.round(score));
+              if (emotion) setLiveFaceEmotion(emotion);
+            }
+          }
+        } catch {
+          // Silent — frame capture failure must not disrupt the call
+        }
+      }, "image/jpeg", 0.85);
+    };
+
+    // First capture after 5 s, then every 15 s
+    const firstShot = setTimeout(() => {
+      captureFrame();
+      frameIntervalRef.current = setInterval(captureFrame, 15_000);
+    }, 5_000);
+
+    return () => {
+      clearTimeout(firstShot);
+      if (frameIntervalRef.current) { clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
+      setFaceCaptureActive(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isApplicant]);
 
   // ── Start WebRTC ──
   useEffect(() => {
@@ -248,6 +313,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
     try { pcRef.current?.close(); } catch { }
     try { recorderRef.current?.state !== "inactive" && recorderRef.current?.stop(); } catch { }
     try { localStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { }
+    if (frameIntervalRef.current) { clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
   }
 
   async function endCall() {
@@ -426,6 +492,23 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
               {hh}:{mm}:{ss}
             </div>
           )}
+
+          {/* Live facial analysis badge (applicant only) */}
+          {phase === "in-call" && isApplicant && faceCaptureActive && (
+            <div className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              {liveFaceScore !== null ? (
+                <span className="text-xs text-white/80">
+                  Face&nbsp;<span className="font-bold text-white tabular-nums">{liveFaceScore}</span>
+                  {liveFaceEmotion && (
+                    <span className="ml-1 text-white/50 capitalize">{liveFaceEmotion}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-xs text-white/50">Analyzing…</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Local PiP video (bottom-right) ── */}
@@ -568,7 +651,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
 
               {/* Q&A transcript */}
               <label className="mb-2 block text-sm font-medium text-white/80">
-                Q&amp;A Transcript <span className="text-white/40">(optional — enables AI analysis)</span>
+                Q&amp;A Transcript <span className="text-white/40">(optional — improves AI accuracy)</span>
               </label>
               <textarea
                 value={fbTranscript}
@@ -580,8 +663,8 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
               <div className="mb-5 flex items-start gap-2 text-xs text-white/40">
                 <Brain className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  Add the Q&amp;A so the AI can score technical depth, communication, confidence, and
-                  problem-solving. The report shows the AI score, your score, and their average.
+                  AI analysis always runs. Adding the Q&amp;A transcript gives the AI full context to
+                  score technical depth and problem-solving more precisely.
                 </span>
               </div>
 

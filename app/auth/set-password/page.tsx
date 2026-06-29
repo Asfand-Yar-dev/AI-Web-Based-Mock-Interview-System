@@ -3,8 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { motion } from "framer-motion"
-import { ArrowRight, Eye, EyeOff, Loader2, Sparkles, KeyRound, ShieldCheck } from "lucide-react"
+import { ArrowRight, Eye, EyeOff, Loader2, KeyRound, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -64,11 +65,15 @@ export default function SetPasswordPage() {
           <div className="pointer-events-none absolute right-12 top-1/3 h-40 w-40 rotate-12 rounded-3xl border border-accent/30" />
 
           <div className="relative flex h-full flex-col justify-between p-12">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
-                <Sparkles className="h-4 w-4 text-accent-foreground" />
-              </div>
-              <span className="text-lg font-semibold text-sidebar-foreground">Intervexa</span>
+            <Link href="/" className="flex items-center gap-1.5">
+              <Image
+                src="/Logo_with_no_background.png"
+                alt="Intervexa"
+                width={64}
+                height={64}
+                className="object-contain"
+              />
+              <span className="font-display text-[22px] font-bold leading-none text-sidebar-foreground">Intervexa</span>
             </Link>
 
             <div className="space-y-6 max-w-md">
@@ -114,11 +119,15 @@ export default function SetPasswordPage() {
           className="w-full max-w-md"
         >
           {/* Mobile-only brand */}
-          <Link href="/" className="mb-10 flex items-center gap-2 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-              <Sparkles className="h-4 w-4 text-accent-foreground" />
-            </div>
-            <span className="font-semibold text-foreground">Intervexa</span>
+          <Link href="/" className="mb-10 flex items-center gap-1.5 lg:hidden">
+            <Image
+              src="/Logo_with_no_background.png"
+              alt="Intervexa"
+              width={64}
+              height={64}
+              className="object-contain"
+            />
+            <span className="font-display text-[22px] font-bold leading-none text-foreground">Intervexa</span>
           </Link>
 
           <div className="mb-8 flex items-start gap-4">

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { motion } from "framer-motion"
 import {
   Loader2,
@@ -11,7 +12,6 @@ import {
   Settings,
   MessageSquare,
   ShieldCheck,
-  Sparkles,
   Activity,
   LogOut,
 } from "lucide-react"
@@ -226,12 +226,16 @@ export default function AdminPage() {
         {/* ── Sidebar ── */}
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-border/50 bg-sidebar lg:flex">
           {/* Brand */}
-          <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-accent-strong shadow-[0_0_18px_var(--glow)]">
-              <Sparkles className="h-4 w-4 text-accent-foreground" />
-            </div>
+          <div className="flex h-20 items-center gap-1.5 border-b border-sidebar-border px-5">
+            <Image
+              src="/Logo_with_no_background.png"
+              alt="Intervexa"
+              width={64}
+              height={64}
+              className="object-contain"
+            />
             <div className="min-w-0">
-              <p className="truncate font-display text-[15px] font-semibold leading-tight text-sidebar-foreground">Intervexa</p>
+              <p className="truncate font-display text-[22px] font-bold leading-none text-sidebar-foreground">Intervexa</p>
               <p className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-accent">Admin</p>
             </div>
           </div>
