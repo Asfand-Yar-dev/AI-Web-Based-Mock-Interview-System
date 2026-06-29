@@ -1084,28 +1084,15 @@ def analyze_video():
                             f"[analyze-video] NLP (full eval) score={nlp_score} "
                             f"role={job_role!r} transcript_words={len(transcript_text.split())}"
                         )
-                    elif job_role:
-                        # No transcript but we know the role — use general estimator
-                        nlp_result = conductor.evaluate_live_interview_general(
-                            role=job_role,
-                            domain=job_domain or "technology",
-                            skills=job_skills or [],
-                            interviewer_score=0,
-                        )
-                        nlp_score = nlp_result.get("overall_score", 0)
-                        nlp_data  = {
-                            **nlp_result,
-                            "stt_used": False,
-                            "note": "Audio could not be transcribed — role-based estimate used",
-                        }
-                        logger.info(
-                            f"[analyze-video] NLP (general, no transcript) score={nlp_score} "
-                            f"role={job_role!r}"
-                        )
                     else:
-                        # No transcript AND no role context — skip NLP entirely
+                        # No transcript — skip NLP entirely.
+                        # evaluate_live_interview_general() only gives meaningful results
+                        # when the interviewer has submitted a score; at this stage
+                        # interviewer_score is always 0 so it produces near-zero noise.
+                        # NLP will be re-evaluated when the interviewer submits feedback.
                         logger.warning(
-                            "[analyze-video] NLP skipped — no transcript and no role context"
+                            "[analyze-video] NLP skipped — audio transcription produced no usable text. "
+                            "NLP will run when interviewer submits feedback."
                         )
                 except Exception as ne:
                     logger.warning(f"[analyze-video] NLP analysis failed: {ne}")
@@ -1213,6 +1200,7 @@ def analyze_video():
             payload["report"] = report
 
         body = _json.dumps(payload).encode()
+        logger.info(f"[analyze-video] Sending callback → {callback_url} (status={payload.get('status')})")
         req  = _urllib_req.Request(
             callback_url,
             data=body,
@@ -1225,6 +1213,14 @@ def analyze_video():
         try:
             with _urllib_req.urlopen(req, timeout=15) as resp:
                 logger.info(f"[analyze-video] Callback delivered → {resp.status}")
+        except _urllib_req.HTTPError as cb_err:
+            try:
+                err_body = cb_err.read().decode("utf-8", errors="replace")[:500]
+            except Exception:
+                err_body = "(could not read body)"
+            logger.error(
+                f"[analyze-video] Callback HTTP {cb_err.code} for {booking_id}: {err_body}"
+            )
         except Exception as cb_err:
             logger.error(f"[analyze-video] Callback failed for {booking_id}: {cb_err}")
 

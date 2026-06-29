@@ -73,26 +73,30 @@ async function queueLiveAnalysis(bookingId) {
  * so the final figure reflects both in-call expressions AND post-call video.
  */
 async function applyAiReport(bookingId, report) {
+  logger.info(`[applyAiReport] START bookingId=${bookingId}`);
   const booking = await LiveBooking.findById(bookingId);
-  if (!booking) throw new Error(`LiveBooking ${bookingId} not found`);
+  if (!booking) {
+    logger.error(`[applyAiReport] Booking ${bookingId} NOT FOUND in database`);
+    throw new Error(`LiveBooking ${bookingId} not found`);
+  }
+  logger.info(`[applyAiReport] Found booking, status=${booking.status}`);
 
   // ── Blend real-time facial scores into the report ──────────────────────────
-  // The analyze-video pipeline stores the facial score at report.facial.overall_score.
-  // We merge real-time captures (taken during the call) with the recording-based score.
   const merged = { ...(report || {}) };
-  const rtScores = booking.realtimeFaceScores || [];
+  const rtScores = (booking.realtimeFaceScores || []).filter(
+    (e) => typeof e.score === 'number' && !Number.isNaN(e.score)
+  );
   if (rtScores.length > 0) {
     const rtAvg = Math.round(rtScores.reduce((s, e) => s + e.score, 0) / rtScores.length);
     const recordingFacial =
       typeof merged?.facial?.overall_score === 'number' ? merged.facial.overall_score : null;
 
     const blended = recordingFacial != null
-      ? Math.round((rtAvg + recordingFacial) / 2)   // 50% real-time + 50% recording
-      : rtAvg;                                        // recording score absent — use real-time only
+      ? Math.round((rtAvg + recordingFacial) / 2)
+      : rtAvg;
 
     merged.realtime_face_score   = rtAvg;
     merged.realtime_face_samples = rtScores.length;
-    // Patch both the nested facial object and the top-level facial_score field
     merged.facial       = { ...(merged.facial || {}), overall_score: blended };
     merged.facial_score = blended;
 
@@ -104,6 +108,7 @@ async function applyAiReport(bookingId, report) {
   }
 
   booking.aiReport = merged;
+  booking.markModified('aiReport');   // required for Mongoose Mixed fields
   booking.aiCompletedAt = new Date();
   booking.aiFailedReason = undefined;
 
@@ -111,7 +116,14 @@ async function applyAiReport(bookingId, report) {
     booking.status = LIVE_BOOKING_STATUS.RESULTS_READY;
   }
 
-  await booking.save();
+  logger.info(`[applyAiReport] Saving booking, new status=${booking.status}`);
+  try {
+    await booking.save();
+  } catch (saveErr) {
+    logger.error(`[applyAiReport] booking.save() FAILED: ${saveErr.message}`, { stack: saveErr.stack });
+    throw saveErr;
+  }
+  logger.info(`[applyAiReport] DONE booking=${bookingId}`);
   return booking;
 }
 

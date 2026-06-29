@@ -19,10 +19,11 @@ export const metadata: Metadata = {
   generator: "Intervexa",
   icons: {
     icon: [
-      { url: "/Logo_with_no_background.png", sizes: "192x192", type: "image/png" },
-      { url: "/Logo_with_no_background.png", sizes: "32x32",  type: "image/png" },
+      { url: "/icon.svg",            type: "image/svg+xml" },
+      { url: "/icon-light-32x32.png", sizes: "32x32", type: "image/png", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark-32x32.png",  sizes: "32x32", type: "image/png", media: "(prefers-color-scheme: dark)"  },
     ],
-    apple: { url: "/Logo_with_no_background.png", sizes: "180x180" },
+    apple: { url: "/apple-icon.png", sizes: "180x180" },
   },
 }
 

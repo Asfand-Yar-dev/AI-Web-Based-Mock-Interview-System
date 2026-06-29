@@ -581,19 +581,28 @@ async function handleAiAnalysisWebhook(req, res) {
     return res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, message: 'Bad secret' });
   }
 
-  const { booking_id: bookingId, status, report, reason } = req.body || {};
+  const body = req.body || {};
+  const { booking_id: bookingId, status, report, reason } = body;
+
+  logger.info(`[webhook/ai-complete] received bookingId=${bookingId} status=${status} bodyKeys=${Object.keys(body).join(',')}`);
+
   if (!bookingId) throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'booking_id is required');
 
   let booking;
-  if (status === 'failed') {
-    booking = await liveAiService.markAiFailed(bookingId, reason || 'AI gateway reported failure');
-  } else {
-    booking = await liveAiService.applyAiReport(bookingId, report || {});
+  try {
+    if (status === 'failed') {
+      booking = await liveAiService.markAiFailed(bookingId, reason || 'AI gateway reported failure');
+    } else {
+      booking = await liveAiService.applyAiReport(bookingId, report || {});
+    }
+  } catch (err) {
+    logger.error(`[webhook/ai-complete] applyAiReport THREW: ${err.message}`, { stack: err.stack });
+    throw err;
   }
 
   if (booking && booking.status === LIVE_BOOKING_STATUS.RESULTS_READY) {
     emitBookingChanged(booking.applicantId);
-    const applicant = await User.findById(booking.applicantId);
+    const applicant = await User.findById(booking.applicantId).catch(() => null);
     if (applicant?.email) {
       sendResultsReady({
         to: applicant.email,
@@ -604,6 +613,7 @@ async function handleAiAnalysisWebhook(req, res) {
     }
   }
 
+  logger.info(`[webhook/ai-complete] OK bookingId=${bookingId} finalStatus=${booking?.status}`);
   res.status(HTTP_STATUS.OK).json({ success: true });
 }
 
