@@ -165,7 +165,7 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
     BOOKING_STATUS.MEETING_SCHEDULED,
     BOOKING_STATUS.MEETING_STARTED,
   ].includes(booking.status as any);
-  const showResults  = [BOOKING_STATUS.MEETING_COMPLETED, BOOKING_STATUS.EVALUATING_AI, BOOKING_STATUS.RESULTS_READY].includes(booking.status as any);
+  const showResults  = booking.status === BOOKING_STATUS.RESULTS_READY;
   const isRejected   = booking.status === BOOKING_STATUS.REJECTED;
   const isNoShow     = [BOOKING_STATUS.FAILED_NO_SHOW, BOOKING_STATUS.REFUNDED].includes(booking.status as any);
   const isPending    = booking.status === BOOKING_STATUS.PENDING_APPROVAL;
@@ -292,13 +292,29 @@ function BookingCard({ booking, onRefresh }: { booking: LiveBooking; onRefresh: 
         {showCalendar && (
           <AddToCalendarButton booking={booking} />
         )}
-        {showResults && (
+        {(booking.status === BOOKING_STATUS.MEETING_COMPLETED ||
+          booking.status === BOOKING_STATUS.EVALUATING_AI) && (
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-info/10 border border-info/20 px-4 py-2 text-sm text-info">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              AI is analyzing your interview… results ready in ~10 min
+            </span>
+            <Link
+              href={`/live-interview/results/${booking._id}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-transparent px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Track Status
+            </Link>
+          </div>
+        )}
+        {booking.status === BOOKING_STATUS.RESULTS_READY && (
           <Link
             href={`/live-interview/results/${booking._id}`}
-            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-transparent px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent/90 transition-colors"
           >
-            <ExternalLink className="h-4 w-4" />
-            {booking.status === BOOKING_STATUS.RESULTS_READY ? "View Full Report" : "View Status"}
+            <CheckCircle2 className="h-4 w-4" />
+            View Full Report
           </Link>
         )}
         {isRejected && (

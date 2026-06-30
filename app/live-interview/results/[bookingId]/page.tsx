@@ -458,9 +458,9 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
-        {/* Human Feedback — shown whenever the interviewer submitted scores
-            and/or written notes (written feedback is optional). */}
-        {(humanScore !== null ||
+        {/* Human Feedback — only shown once status is results_ready so that
+            AI report and human feedback appear together in one go. */}
+        {isReady && (humanScore !== null ||
           booking.humanFeedback ||
           (booking.humanDimensionScores && Object.keys(booking.humanDimensionScores).length > 0)) && (
           <motion.div
@@ -507,8 +507,8 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
-        {/* Final score — average of AI + human, shown below both sections */}
-        {finalCombinedScore !== null && (
+        {/* Final score — only when results are ready */}
+        {isReady && finalCombinedScore !== null && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

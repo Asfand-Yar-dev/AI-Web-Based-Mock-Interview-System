@@ -112,7 +112,9 @@ async function applyAiReport(bookingId, report) {
   booking.aiCompletedAt = new Date();
   booking.aiFailedReason = undefined;
 
-  if (booking.canPublishResults()) {
+  // Use direct check instead of model method so this works even if the
+  // LiveBooking schema version in use doesn't define canPublishResults().
+  if (booking.aiReport) {
     booking.status = LIVE_BOOKING_STATUS.RESULTS_READY;
   }
 
