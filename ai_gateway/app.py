@@ -131,8 +131,8 @@ def _get_interviewer():
                         answer_gen_dir / "ai_engine" / "interviewer.py",
                         "InterviewConductor",
                     )
-                    api_key = os.getenv("GEMINI_API_KEY")
-                    _models["interviewer"] = InterviewConductor(api_key=api_key)
+                    # Do not pass GEMINI_API_KEY explicitly so it correctly uses GROQ_API_KEY
+                    _models["interviewer"] = InterviewConductor()
                     logger.info("✅ InterviewConductor (Gemini) loaded")
                 except Exception as e:
                     logger.error(f" Failed to load InterviewConductor: {e}")

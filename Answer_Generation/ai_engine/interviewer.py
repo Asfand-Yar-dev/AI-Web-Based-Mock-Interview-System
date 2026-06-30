@@ -62,6 +62,7 @@ class InterviewConductor:
             self.client = openai.OpenAI(
                 base_url="https://api.groq.com/openai/v1",
                 api_key=self.api_key,
+                timeout=60.0, 
             )
             self.model = "llama-3.3-70b-versatile"
             logger.info("InterviewConductor initialized successfully with Groq API")

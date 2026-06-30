@@ -8,7 +8,7 @@
 import type React from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { CalendarDays, ArrowLeft } from "lucide-react"
+import { CalendarDays, ArrowLeft, Sparkles } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { motion } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"

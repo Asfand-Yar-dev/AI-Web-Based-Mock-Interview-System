@@ -311,31 +311,48 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
     try { socketRef.current?.emit("leave-room", { roomId: meetingRoomId }); } catch { }
     try { socketRef.current?.disconnect(); } catch { }
     try { pcRef.current?.close(); } catch { }
-    try { recorderRef.current?.state !== "inactive" && recorderRef.current?.stop(); } catch { }
+    // NOTE: Do NOT stop recorderRef here — endCall() handles it to ensure
+    // the final data chunk is captured before creating the upload Blob.
     try { localStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { }
     if (frameIntervalRef.current) { clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
   }
 
   async function endCall() {
     setPhase("ended");
-    cleanup();
 
     // Interviewer: collect manual feedback (score + notes + optional Q&A
     // transcript). Submitting triggers the AI analysis + combined/average score
     // on the backend, then routes everyone to the 360° report.
     if (!isApplicant) {
+      cleanup();
       setPhase("feedback");
       return;
     }
 
-    // Applicant: upload the recording for the AI pipeline, then leave.
+    // Applicant: stop the recorder gracefully, wait for the final data
+    // chunk to arrive via ondataavailable, THEN create the Blob and upload.
+    // This prevents truncated .webm files that DeepFace can't analyze.
     setPhase("uploading");
     try {
+      const recorder = recorderRef.current;
+
+      if (recorder && recorder.state !== "inactive") {
+        await new Promise<void>((resolve) => {
+          recorder.onstop = () => resolve();
+          recorder.stop();
+        });
+      }
+
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
+
+      // Now clean up signalling, peer connection, and media tracks
+      cleanup();
+
       await uploadRecording(bookingId, blob);
       setPhase("done");
       onEnded?.();
     } catch (err: any) {
+      cleanup();
       setErrorMsg(err?.message || "Upload failed");
       setPhase("error");
     }
