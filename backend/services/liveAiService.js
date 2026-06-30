@@ -13,6 +13,7 @@ const logger = require('../config/logger');
 const LiveBooking = require('../models/LiveBooking');
 const { LIVE_BOOKING_STATUS, LIVE_INTERVIEW } = require('../config/constants');
 
+
 const AI_GATEWAY_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
 
 /**

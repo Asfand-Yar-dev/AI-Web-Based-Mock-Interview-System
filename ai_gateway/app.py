@@ -7,6 +7,7 @@ in the system. The Node.js backend communicates with this gateway instead
 of each model individually.
 
 Endpoints:
+
     GET  /api/ai/health                 – Health check for all services
     POST /api/ai/transcribe             – Speech-to-Text (Whisper)
     POST /api/ai/analyze-nlp            – NLP answer evaluation (Sentence-BERT)
