@@ -106,30 +106,83 @@ const register = async (req, res) => {
   // SECURITY: Only allow 'user' or 'interviewer'. High-privilege roles like 'admin' cannot be requested.
   const user_role = role === 'interviewer' ? 'interviewer' : 'user';
 
-  // Step 1: Check if user with this email already exists
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  // Step 1: Check if user with this email already exists. We pull in the
+  // verification expiry (select:false by default) so we can tell a real,
+  // verified account apart from a stale, never-verified signup attempt.
+  const existingUser = await User.findOne({ email: email.toLowerCase() })
+    .select('+emailVerificationExpires');
 
   if (existingUser) {
-    // An email is one identity — it can't own both a user and an interviewer account.
-    // If the requested role differs from the existing one, say so explicitly so the user knows
-    // whether to log in to their existing account or use a different email.
-    const existingRole = existingUser.user_role;
+    // A VERIFIED account is a real identity — enforce the one-email-one-role
+    // rule and reject duplicate signups outright.
+    if (existingUser.isEmailVerified) {
+      // An email is one identity — it can't own both a user and an interviewer account.
+      // If the requested role differs from the existing one, say so explicitly so the user knows
+      // whether to log in to their existing account or use a different email.
+      const existingRole = existingUser.user_role;
 
-    if (existingRole !== user_role) {
-      const existingLabel = existingRole === 'interviewer' ? 'an interviewer'
-        : existingRole === 'admin' ? 'an admin'
-        : 'a candidate';
+      if (existingRole !== user_role) {
+        const existingLabel = existingRole === 'interviewer' ? 'an interviewer'
+          : existingRole === 'admin' ? 'an admin'
+          : 'a candidate';
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          `This email is already registered as ${existingLabel}. The same email can't be used for both a candidate and an interviewer — log in to your existing account or sign up with a different email${user_role === 'interviewer' ? ' to join as an interviewer' : ''}.`
+        );
+      }
+
+      // Same role, just a duplicate signup attempt.
       throw new ApiError(
         HTTP_STATUS.CONFLICT,
-        `This email is already registered as ${existingLabel}. The same email can't be used for both a candidate and an interviewer — log in to your existing account or sign up with a different email${user_role === 'interviewer' ? ' to join as an interviewer' : ''}.`
+        'An account with this email already exists. Please log in or use a different email.'
       );
     }
 
-    // Same role, just a duplicate signup attempt.
-    throw new ApiError(
-      HTTP_STATUS.CONFLICT,
-      'An account with this email already exists. Please log in or use a different email.'
-    );
+    // The account exists but was NEVER verified — it's a pending signup, not a
+    // real identity yet. Decide based on whether its code is still live.
+    const codeStillValid = existingUser.emailVerificationExpires
+      && existingUser.emailVerificationExpires.getTime() > Date.now();
+
+    if (codeStillValid) {
+      // Code hasn't expired — don't churn the account. Reissue a fresh code so
+      // the user always has a working one, and bounce them to the OTP screen.
+      const otp = generateOtp();
+      existingUser.emailVerificationToken = hashResetCode(otp);
+      existingUser.emailVerificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await existingUser.save();
+
+      try {
+        await sendEmailVerificationOtp(existingUser.email, existingUser.name, otp);
+      } catch (err) {
+        logger.error(`Failed to resend verification OTP to ${existingUser.email}: ${err.message}`);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_ERROR,
+          'This email is pending verification, but we could not send the code. Please use "Resend code" in a moment.'
+        );
+      }
+
+      logger.info(`Resent verification OTP for pending signup: ${existingUser.email}`);
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        requiresVerification: true,
+        message: 'This email is already awaiting verification — we\'ve sent you a fresh 6-digit code.',
+        data: {
+          email: existingUser.email,
+        }
+      });
+    }
+
+    // Code expired and the account was never verified → it's dead weight.
+    // Lazily clean it up (plus any interviewer skeleton) so the fresh signup
+    // below starts clean, honouring the latest name / password / role.
+    await User.deleteOne({ _id: existingUser._id });
+    try {
+      const Interviewer = require('../models/Interviewer');
+      await Interviewer.deleteOne({ userId: existingUser._id });
+    } catch (err) {
+      logger.error(`Failed to clean up interviewer skeleton for stale signup ${existingUser._id}: ${err.message}`);
+    }
+    logger.info(`Removed stale unverified account for ${existingUser.email}; recreating fresh.`);
   }
   const user = new User({
     name: name.trim(),
@@ -160,20 +213,34 @@ const register = async (req, res) => {
     }
   }
 
-  // Step 4: Generate JWT token for immediate login after registration
-  const token = generateToken(user);
+  // Step 4: Generate a 6-digit email-verification OTP, store its hash + expiry
+  // (10 min), and email it. The account stays unverified until the code is
+  // entered, so we deliberately DO NOT issue a JWT here — no auto-login.
+  const otp = generateOtp();
+  user.emailVerificationToken = hashResetCode(otp);
+  user.emailVerificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  try {
+    await sendEmailVerificationOtp(user.email, user.name, otp);
+  } catch (err) {
+    logger.error(`Failed to send verification OTP to ${user.email}: ${err.message}`);
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_ERROR,
+      'Your account was created but we could not send the verification code. Please use "Resend code" in a moment.'
+    );
+  }
 
   // Step 5: Log the registration event
-  logger.info(`New user registered: ${email} with role: ${user.user_role}`);
+  logger.info(`New user registered (pending verification): ${email} with role: ${user.user_role}`);
 
-  // Step 6: Send success response
-  // Note: toSafeObject() removes the password from the response
+  // Step 6: Send success response — no token; the frontend moves to the OTP step.
   res.status(HTTP_STATUS.CREATED).json({
     success: true,
-    message: 'Registration successful! Welcome to AI Interview System.',
+    requiresVerification: true,
+    message: 'Account created! We\'ve emailed you a 6-digit verification code.',
     data: {
-      user: user.toSafeObject(),
-      token
+      email: user.email,
     }
   });
 };
@@ -246,6 +313,16 @@ const login = async (req, res) => {
     throw new ApiError(
       HTTP_STATUS.UNAUTHORIZED,
       'Invalid email or password. Please check your credentials.'
+    );
+  }
+
+  // Step 4.5: Block login until the email has been verified via OTP.
+  // Only applies to email/password accounts — Google users are pre-verified.
+  if (!user.isEmailVerified) {
+    throw new ApiError(
+      HTTP_STATUS.FORBIDDEN,
+      'Please verify your email first. Enter the 6-digit code we sent to your inbox.',
+      { code: 'EMAIL_NOT_VERIFIED', email: user.email }
     );
   }
 
@@ -866,11 +943,14 @@ const refreshTokenHandler = async (req, res) => {
  * -----------------------------------------------------------------------------
  */
 const crypto = require('crypto');
-const { sendPasswordResetOtp } = require('../config/email');
+const { sendPasswordResetOtp, sendEmailVerificationOtp } = require('../config/email');
 
 // Hash an OTP/token the same way before storing or comparing.
 const hashResetCode = (code) =>
   crypto.createHash('sha256').update(String(code)).digest('hex');
+
+// Generate a 6-digit numeric OTP as a string (100000–999999).
+const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
 
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
@@ -1017,10 +1097,121 @@ const resetPassword = async (req, res) => {
 
 /**
  * -----------------------------------------------------------------------------
+ * CONTROLLER: Verify Email OTP (sign-up)
+ * -----------------------------------------------------------------------------
+ * Confirms the 6-digit code emailed at registration. On success the account is
+ * marked verified and the verification code is cleared, unlocking login.
+ *
+ * @route   POST /api/users/verify-email-otp
+ * @access  Public
+ * -----------------------------------------------------------------------------
+ */
+const verifyEmailOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Email and verification code are required.');
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase() })
+    .select('+emailVerificationToken +emailVerificationExpires');
+
+  if (!user) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Invalid or expired verification code. Please request a new one.'
+    );
+  }
+
+  // Already verified — treat as success so a double-submit isn't an error.
+  if (user.isEmailVerified) {
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: 'Your email is already verified. You can log in.',
+    });
+  }
+
+  const codeMatches =
+    user.emailVerificationToken === hashResetCode(otp) &&
+    user.emailVerificationExpires &&
+    user.emailVerificationExpires > new Date();
+
+  if (!codeMatches) {
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      'Invalid or expired verification code. Please check the code or request a new one.'
+    );
+  }
+
+  user.isEmailVerified = true;
+  user.emailVerificationToken = undefined;
+  user.emailVerificationExpires = undefined;
+  await user.save();
+
+  logger.info(`Email verified via OTP for: ${user.email}`);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Email verified successfully! You can now log in.',
+  });
+};
+
+/**
+ * -----------------------------------------------------------------------------
+ * CONTROLLER: Resend Email Verification OTP
+ * -----------------------------------------------------------------------------
+ * Issues a fresh code for an account that hasn't verified yet. Uses the same
+ * "don't reveal whether the email exists" response as forgot-password.
+ *
+ * @route   POST /api/users/resend-email-otp
+ * @access  Public
+ * -----------------------------------------------------------------------------
+ */
+const resendEmailOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Email address is required.');
+  }
+
+  const genericResponse = () =>
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: 'If an unverified account with that email exists, a new verification code has been sent.',
+    });
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+
+  // No account, or already verified → say nothing specific.
+  if (!user || user.isEmailVerified) {
+    return genericResponse();
+  }
+
+  const otp = generateOtp();
+  user.emailVerificationToken = hashResetCode(otp);
+  user.emailVerificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  try {
+    await sendEmailVerificationOtp(user.email, user.name, otp);
+  } catch (err) {
+    logger.error(`Failed to resend verification OTP to ${user.email}: ${err.message}`);
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_ERROR,
+      'We could not send the verification code right now. Please try again in a moment.'
+    );
+  }
+
+  logger.info(`Verification OTP resent to: ${user.email}`);
+  return genericResponse();
+};
+
+/**
+ * -----------------------------------------------------------------------------
  * CONTROLLER: Update User Settings
  * -----------------------------------------------------------------------------
  * Updates the user's notification preferences.
- * 
+ *
  * @route   PATCH /api/users/settings
  * @access  Private
  * -----------------------------------------------------------------------------
@@ -1072,6 +1263,8 @@ module.exports = {
   forgotPassword,
   verifyResetOtp,
   resetPassword,
+  verifyEmailOtp,
+  resendEmailOtp,
   updateSettings,
 };
 

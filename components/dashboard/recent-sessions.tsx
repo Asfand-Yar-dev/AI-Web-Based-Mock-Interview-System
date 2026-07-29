@@ -67,8 +67,9 @@ function getStatusBadgeClass(status: string) {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 66) return { stroke: "var(--success)", text: "text-success" }
-  if (score >= 41) return { stroke: "var(--warning)", text: "text-warning" }
+  // ≤50 red, 51–75 yellow, 76–100 green
+  if (score >= 76) return { stroke: "var(--success)", text: "text-success" }
+  if (score >= 51) return { stroke: "var(--warning)", text: "text-warning" }
   return { stroke: "var(--destructive)", text: "text-destructive" }
 }
 

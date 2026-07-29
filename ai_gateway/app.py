@@ -647,6 +647,44 @@ def generate_feedback():
 # ===========================================================================
 # 7b. INTERVIEWER VETTING & AUTO-VERIFICATION
 # ===========================================================================
+@app.route("/api/ai/model-answer", methods=["POST"])
+def model_answer():
+    """Generate the ideal/correct answer to an interview question.
+
+    Request JSON:
+        { "question": "...", "role": "Backend Developer", "skills": ["..."] }
+
+    Response:
+        { "status": "success", "answer": "..." }
+    """
+    conductor = _get_interviewer()
+    if conductor is None:
+        return jsonify({"status": "error", "message": "Interviewer AI not available"}), 503
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"status": "error", "message": "JSON body required"}), 400
+
+    question = data.get("question", "")
+    role = data.get("role", "")
+    skills = data.get("skills", [])
+    if not question:
+        return jsonify({"status": "error", "message": "question is required"}), 400
+
+    try:
+        answer = conductor.generate_model_answer(
+            question,
+            role,
+            skills if isinstance(skills, list) else [],
+        )
+        if not answer:
+            return jsonify({"status": "error", "message": "Could not generate a model answer"}), 502
+        return jsonify({"status": "success", "answer": answer}), 200
+    except Exception as e:
+        logger.exception("Model answer generation error")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/api/ai/generate-vetting-question", methods=["POST"])
 def generate_vetting_question():
     """Generate the next interviewer vetting question based on profile and history."""

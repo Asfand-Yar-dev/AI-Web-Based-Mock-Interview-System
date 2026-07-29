@@ -121,7 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     try {
       const response = await authApi.login(email, password);
-      
+
       if (response.success && response.data) {
         setUser(response.data.user);
         // replace (not push) so /login is dropped from history — back button
@@ -131,6 +131,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error(response.message || 'Login failed');
       }
     } catch (err) {
+      // Unverified account → send them to the OTP screen instead of a dead end.
+      const code = (err as { code?: string })?.code;
+      if (code === 'EMAIL_NOT_VERIFIED') {
+        const pendingEmail = (err as { email?: string })?.email || email;
+        router.push(`/verify-email?email=${encodeURIComponent(pendingEmail)}`);
+      }
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
       throw err;
@@ -147,12 +153,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authApi.register(name, email, password, role);
 
-      if (response.success && response.data) {
-        // No auto-login on sign-up — both users and interviewers must sign in
-        // explicitly. Drop the token register() stored and bounce them to login.
+      if (response.success) {
+        // Registration no longer logs the user in — it emails a 6-digit code.
+        // Make sure no stale session lingers, then move to the OTP screen.
         clearAuthData();
         setUser(null);
-        router.replace('/login');
+        const pendingEmail = response.data?.email || email;
+        router.replace(`/verify-email?email=${encodeURIComponent(pendingEmail)}`);
       } else {
         throw new Error(response.message || 'Registration failed');
       }

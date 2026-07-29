@@ -134,7 +134,7 @@ function SidebarContent({ pathname, onClose }: { pathname: string; onClose?: () 
   }
 
   const initials = getInitials(user?.name, user?.email)
-  const displayName = user?.name || user?.email || "User"
+  const displayName = user?.name || user?.email || "Applicant"
   const userEmail = user?.email || ""
 
   const userRole = String(user?.user_role || (user as any)?.role || "").trim().toLowerCase()

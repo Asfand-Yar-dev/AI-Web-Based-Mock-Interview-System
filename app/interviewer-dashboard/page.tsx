@@ -33,6 +33,7 @@ import { liveInterviewApi, type LiveBooking, type InterviewerProfile } from "@/l
 import { useBookingRealtime } from "@/hooks/use-booking-realtime"
 import { Button } from "@/components/ui/button"
 
+import { BookingStatusBadge, interviewerDisplayStatus } from "@/components/live-interview/booking-status-badge"
 import { InterviewerLayout, type InterviewerTab } from "@/components/interviewer/interviewer-layout"
 import { InterviewerStatsCards } from "@/components/interviewer/interviewer-stats-cards"
 import { InterviewerBookingsList } from "@/components/interviewer/interviewer-bookings-list"
@@ -368,7 +369,7 @@ function OverviewTab({
           ) : (
             <div className="space-y-3">
               {pendingFeedback.map((b) => (
-                <MiniBookingRow key={b._id} booking={b} showFeedbackBadge />
+                <MiniBookingRow key={b._id} booking={b} />
               ))}
             </div>
           )}
@@ -628,14 +629,11 @@ function SectionGroup({
 
 function MiniBookingRow({
   booking,
-  showFeedbackBadge,
   onRefresh,
 }: {
   booking: LiveBooking
-  showFeedbackBadge?: boolean
   onRefresh?: () => void
 }) {
-  const [hovered, setHovered] = useState(false)
   const [busy, setBusy] = useState(false)
   const when = new Date(booking.scheduledTime)
   const isPending = booking.status === "pending_approval"
@@ -651,8 +649,6 @@ function MiniBookingRow({
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 px-4 py-3 gap-3 transition-all hover:bg-secondary/30 min-h-[66px]"
     >
       <div className="min-w-0">
@@ -663,7 +659,7 @@ function MiniBookingRow({
           {booking.domain}
         </p>
       </div>
-      {isPending && hovered ? (
+      {isPending ? (
         <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button
             size="sm"
@@ -715,14 +711,8 @@ function MiniBookingRow({
           <Video className="h-3.5 w-3.5" />
           {booking.status === "meeting_started" ? "Rejoin" : "Join Meeting"}
         </Link>
-      ) : showFeedbackBadge ? (
-        <span className="shrink-0 rounded-full bg-warning/15 border border-warning/30 px-2.5 py-0.5 text-xs font-medium text-warning">
-          Pending
-        </span>
       ) : (
-        <span className="shrink-0 rounded-full bg-info/15 border border-info/30 px-2.5 py-0.5 text-xs font-medium text-info capitalize">
-          {booking.status.replace(/_/g, " ")}
-        </span>
+        <BookingStatusBadge status={interviewerDisplayStatus(booking.status)} className="shrink-0" />
       )}
     </div>
   )

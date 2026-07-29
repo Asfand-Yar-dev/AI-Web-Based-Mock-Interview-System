@@ -73,7 +73,7 @@ export default function LiveRoomPage() {
       meetingRoomId={roomId}
       isApplicant={isApplicant}
       localName={user?.name || "You"}
-      remoteName={isApplicant ? "Interviewer" : "Candidate"}
+      remoteName={isApplicant ? "Interviewer" : "Applicant"}
       onEnded={() => router.push(`/live-interview/results/${bookingId}`)}
     />
   );

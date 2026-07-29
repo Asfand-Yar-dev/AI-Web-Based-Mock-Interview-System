@@ -10,9 +10,17 @@ const { HTTP_STATUS } = require('../config/constants');
  * Custom API Error class
  */
 class ApiError extends Error {
-  constructor(statusCode, message, isOperational = true) {
+  /**
+   * @param {number} statusCode
+   * @param {string} message
+   * @param {Object|null} details - Optional extra fields (e.g. { code, email })
+   *                                that get merged into the JSON error response.
+   * @param {boolean} isOperational
+   */
+  constructor(statusCode, message, details = null, isOperational = true) {
     super(message);
     this.statusCode = statusCode;
+    this.details = details;
     this.isOperational = isOperational;
     this.success = false;
 
@@ -89,6 +97,9 @@ const errorHandler = (err, req, res, next) => {
   res.status(statusCode).json({
     success: false,
     message,
+    // Merge any operational details (e.g. { code: 'EMAIL_NOT_VERIFIED', email })
+    // so the frontend can react to specific error cases.
+    ...(err.details && typeof err.details === 'object' ? err.details : {}),
     ...(isDev && {
       stack: err.stack,
       error: err

@@ -25,6 +25,9 @@ export const API_ENDPOINTS = {
     FORGOT_PASSWORD: '/api/users/forgot-password',
     VERIFY_RESET_OTP: '/api/users/verify-reset-otp',
     RESET_PASSWORD: '/api/users/reset-password',
+    VERIFY_EMAIL_OTP: '/api/users/verify-email-otp',
+    RESEND_EMAIL_OTP: '/api/users/resend-email-otp',
+    UPDATE_SETTINGS: '/api/users/settings',
   },
   
   // Interviews

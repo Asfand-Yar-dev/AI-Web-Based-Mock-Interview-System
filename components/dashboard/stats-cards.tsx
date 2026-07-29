@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { TrendingUp, Flame, Clock, Target } from "lucide-react"
+import { TrendingUp, TrendingDown, Flame, Clock, Target } from "lucide-react"
 
 interface StatsCardsProps {
   totalInterviews: number
@@ -32,12 +32,24 @@ export function StatsCards({ totalInterviews, averageScore, confidenceImprovemen
       href: "/dashboard/analytics#performance",
     },
     {
+      // Colour follows the actual value: positive growth is green, a drop is
+      // red, and no change stays neutral — instead of always showing green.
       label: "Confidence growth",
-      value: `+${confidenceImprovement}%`,
-      icon: TrendingUp,
+      value: `${confidenceImprovement > 0 ? "+" : ""}${confidenceImprovement}%`,
+      icon: confidenceImprovement < 0 ? TrendingDown : TrendingUp,
       description: "Since last month",
-      tint: "bg-success/15 text-success",
-      valueClass: "text-success",
+      tint:
+        confidenceImprovement > 0
+          ? "bg-success/15 text-success"
+          : confidenceImprovement < 0
+          ? "bg-destructive/15 text-destructive"
+          : "bg-accent/10 text-accent",
+      valueClass:
+        confidenceImprovement > 0
+          ? "text-success"
+          : confidenceImprovement < 0
+          ? "text-destructive"
+          : "text-card-foreground",
       href: "/dashboard/analytics#trend",
     },
     {

@@ -69,6 +69,13 @@ const interviewSessionSchema = new mongoose.Schema({
   duration: {
     type: Number,
     min: 0
+  },
+  // Cached AI session insights — role-grounded strengths / improvements / summary
+  // generated once from the full Q&A transcript so we never re-call the AI on
+  // every results-page load. Shape: { strengths: [], improvements: [], summary, generatedAt }.
+  ai_insights: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 }, {
   timestamps: true

@@ -22,10 +22,27 @@ import {
   Sparkles,
   Mic,
   Video,
+  Eye,
+  Activity,
+  Gauge,
+  Smile,
 } from "lucide-react";
 import { liveInterviewApi, type LiveBooking } from "@/lib/liveInterviewApi";
 import { Button } from "@/components/ui/button";
 import { PremiumLayout } from "@/components/live-interview/premium-layout";
+
+// ── Score → colour ────────────────────────────────────────────────────────────
+// Unified result thresholds: ≤50 red, 51–75 yellow, 76–100 green.
+
+function scoreHex(score: number): string {
+  return score <= 50 ? "#ef4444" : score <= 75 ? "#f59e0b" : "#10b981";
+}
+function scoreTextClass(score: number): string {
+  return score <= 50 ? "text-destructive" : score <= 75 ? "text-warning" : "text-success";
+}
+function scoreBarClass(score: number): string {
+  return score <= 50 ? "bg-destructive" : score <= 75 ? "bg-warning" : "bg-success";
+}
 
 // ── Status banner ─────────────────────────────────────────────────────────────
 
@@ -37,7 +54,7 @@ const STATUS_CONFIG: Record<string, { icon: React.ComponentType<{ className?: st
   meeting_scheduled:  { icon: Loader2,       title: "Interview Scheduled",      desc: "Your interview is confirmed. Join the meeting at the scheduled time.", color: "text-info",  bg: "bg-info/10 border-info/20"},
   meeting_started:    { icon: Loader2,       title: "Interview In Progress",    desc: "The interview session is currently active.",                         color: "text-accent",    bg: "bg-accent/10 border-accent/20"    },
   meeting_completed:  { icon: Loader2,       title: "Recording Received",       desc: "Your session is queued for AI analysis (~10 minutes).",              color: "text-info",    bg: "bg-info/10 border-info/20"    },
-  evaluating_ai:      { icon: Brain,         title: "AI Analysis In Progress",  desc: "Evaluating Q&A transcript and scoring candidate performance.",       color: "text-info",  bg: "bg-info/10 border-info/20"},
+  evaluating_ai:      { icon: Brain,         title: "AI Analysis In Progress",  desc: "Evaluating Q&A transcript and scoring applicant performance.",       color: "text-info",  bg: "bg-info/10 border-info/20"},
   results_ready:      { icon: CheckCircle2,  title: "Your Report Is Ready",     desc: "360° AI analysis + human interviewer feedback below.",               color: "text-success", bg: "bg-success/10 border-success/20"},
   failed_no_show:     { icon: AlertCircle,   title: "Interviewer Did Not Show", desc: "We're sorry. An auto-refund has been issued to your account.",       color: "text-destructive",     bg: "bg-destructive/10 border-destructive/20"      },
   refunded:           { icon: AlertCircle,   title: "Booking Refunded",         desc: "A refund has been processed to your original payment method.",       color: "text-destructive",     bg: "bg-destructive/10 border-destructive/20"      },
@@ -77,7 +94,7 @@ function StatusBanner({ status }: { status: string }) {
 // ── Score circle ──────────────────────────────────────────────────────────────
 
 function ScoreCircle({ score, label, size = "lg" }: { score: number; label: string; size?: "sm" | "lg" }) {
-  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
+  const color = scoreHex(score);
   const r = size === "lg" ? 54 : 36;
   const stroke = size === "lg" ? 8 : 6;
   const circ = 2 * Math.PI * r;
@@ -126,12 +143,12 @@ function DimCard({ label, score, icon: Icon, color, bg }: {
         <Icon className={`h-4 w-4 ${color}`} />
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold tracking-tight text-foreground">{score}</span>
+        <span className={`text-2xl font-bold tracking-tight ${scoreTextClass(score)}`}>{score}</span>
         <span className="text-[10px] text-muted-foreground">/100</span>
       </div>
       <div className="mt-2 h-1.5 w-full bg-secondary rounded-full overflow-hidden">
         <motion.div
-          className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
+          className={`h-full rounded-full ${scoreBarClass(score)}`}
           initial={{ width: 0 }}
           animate={{ width: `${score}%` }}
           transition={{ duration: 1, ease: "easeOut" }}
@@ -197,6 +214,244 @@ function ImprovementsList({ improvements }: { improvements: string[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+// ── Compact metric bar (sub-metrics for voice / facial) ───────────────────────
+
+function MetricBar({ label, value, suffix = "/100" }: {
+  label: string;
+  value: number;
+  suffix?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={`text-xs font-semibold tabular-nums ${scoreTextClass(value)}`}>{value}{suffix}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <motion.div
+          className={`h-full rounded-full ${scoreBarClass(value)}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Small numeric stat (speech rate, pace, pitch, …) ──────────────────────────
+
+function StatPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/40 bg-secondary/20 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{value}</p>
+    </div>
+  );
+}
+
+// ── Feedback bullet list ──────────────────────────────────────────────────────
+
+function FeedbackBullets({ items, color = "bg-accent" }: { items: string[]; color?: string }) {
+  const clean = items.filter((t) => typeof t === "string" && t.trim().length > 0);
+  if (!clean.length) return null;
+  return (
+    <ul className="space-y-2">
+      {clean.map((t, i) => (
+        <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+          <span className={`mt-1 h-1.5 w-1.5 rounded-full ${color} shrink-0`} />
+          <span>{t}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Voice & speech delivery analysis ──────────────────────────────────────────
+
+function VoiceAnalysisCard({ voice }: { voice: any }) {
+  const overall = typeof voice?.overall_score === "number" ? voice.overall_score : null;
+  const cc = voice?.clarity_confidence ?? {};
+  const tone = voice?.tone ?? {};
+  const hs = voice?.hesitation_stress ?? {};
+  const ccDet = cc.details ?? {};
+  const toneDet = tone.details ?? {};
+  const hsDet = hs.details ?? {};
+
+  const num = (v: any) => (typeof v === "number" && !Number.isNaN(v) ? v : null);
+
+  // Higher-is-better metrics (hesitation/stress are inverted into fluency/composure)
+  const metrics: Array<{ label: string; value: number }> = [];
+  if (num(cc.clarity_score) !== null)    metrics.push({ label: "Clarity",     value: cc.clarity_score });
+  if (num(cc.confidence_score) !== null) metrics.push({ label: "Confidence",  value: cc.confidence_score });
+  if (num(tone.tone_score) !== null)     metrics.push({ label: "Tone",        value: tone.tone_score });
+  if (num(hs.hesitation_score) !== null) metrics.push({ label: "Fluency",     value: Math.round(100 - hs.hesitation_score) });
+  if (num(hs.stress_score) !== null)     metrics.push({ label: "Composure",   value: Math.round(100 - hs.stress_score) });
+
+  const stats: Array<{ label: string; value: string }> = [];
+  if (num(ccDet.speech_rate_syl_per_sec) !== null) stats.push({ label: "Speech Rate", value: `${ccDet.speech_rate_syl_per_sec} syl/s` });
+  if (num(hsDet.pauses_per_minute) !== null)       stats.push({ label: "Pace", value: `${hsDet.pauses_per_minute} pauses/min` });
+  if (num(toneDet.pitch_mean_hz) !== null)         stats.push({ label: "Avg Pitch", value: `${toneDet.pitch_mean_hz} Hz` });
+  if (num(toneDet.energy_level) !== null)          stats.push({ label: "Energy", value: `${toneDet.energy_level}/100` });
+  if (num(voice?.duration_s) !== null)             stats.push({ label: "Speaking Time", value: `${Math.round(voice.duration_s)}s` });
+
+  const feedback = Array.isArray(voice?.feedback) ? voice.feedback : [];
+
+  if (!metrics.length && !stats.length && !feedback.length) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15 }}
+      className="rounded-2xl border border-border/50 bg-card p-6 space-y-5"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Mic className="h-5 w-5 text-accent" />
+          <h2 className="text-base font-semibold text-card-foreground">Voice &amp; Speech Delivery</h2>
+        </div>
+        {overall !== null && (
+          <div className="flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1">
+            <Activity className="h-3.5 w-3.5 text-accent" />
+            <span className={`text-sm font-semibold tabular-nums ${scoreTextClass(overall)}`}>{overall}/100</span>
+          </div>
+        )}
+      </div>
+
+      {metrics.length > 0 && (
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {metrics.map((m) => (
+            <MetricBar key={m.label} label={m.label} value={m.value} />
+          ))}
+        </div>
+      )}
+
+      {stats.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {stats.map((s) => (
+            <StatPill key={s.label} label={s.label} value={s.value} />
+          ))}
+        </div>
+      )}
+
+      {feedback.length > 0 && (
+        <div className="rounded-xl border border-border/40 bg-secondary/20 p-4">
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">What your voice conveyed</p>
+          <FeedbackBullets items={feedback} color="bg-accent" />
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── Facial expression & body-language analysis ────────────────────────────────
+
+function FacialAnalysisCard({ facial }: { facial: any }) {
+  const num = (v: any) => (typeof v === "number" && !Number.isNaN(v) ? v : null);
+  const overall = num(facial?.overall_score);
+
+  const metrics: Array<{ label: string; value: number }> = [];
+  if (num(facial?.avg_confidence) !== null)  metrics.push({ label: "Confidence",  value: facial.avg_confidence });
+  if (num(facial?.avg_engagement) !== null)  metrics.push({ label: "Engagement",  value: facial.avg_engagement });
+  if (num(facial?.avg_eye_contact) !== null) metrics.push({ label: "Eye Contact", value: facial.avg_eye_contact });
+  if (num(facial?.avg_nervousness) !== null) metrics.push({ label: "Composure",   value: Math.round(100 - facial.avg_nervousness) });
+
+  const stats: Array<{ label: string; value: string }> = [];
+  if (num(facial?.face_presence_rate) !== null) stats.push({ label: "On-Camera", value: `${facial.face_presence_rate}%` });
+  if (num(facial?.avg_eye_contact) !== null)    stats.push({ label: "Eye Contact", value: `${facial.avg_eye_contact}/100` });
+  if (num(facial?.total_frames_analyzed) !== null) stats.push({ label: "Frames", value: `${facial.total_frames_analyzed}` });
+  if (num(facial?.realtime_face_score) !== null)   stats.push({ label: "Live Expression", value: `${facial.realtime_face_score}/100` });
+
+  // Emotion distribution → percentage chips, most frequent first
+  const distRaw = facial?.emotion_distribution && typeof facial.emotion_distribution === "object" ? facial.emotion_distribution : {};
+  const distTotal = Object.values(distRaw).reduce((s: number, c: any) => s + (typeof c === "number" ? c : 0), 0);
+  const emotions = distTotal > 0
+    ? Object.entries(distRaw)
+        .map(([emotion, count]) => ({ emotion, pct: Math.round(((count as number) / distTotal) * 100) }))
+        .sort((a, b) => b.pct - a.pct)
+    : [];
+
+  const feedback = [
+    facial?.overall_feedback,
+    facial?.confidence_feedback,
+    facial?.engagement_feedback,
+    facial?.eye_contact_feedback,
+    facial?.nervousness_feedback,
+  ].filter((t): t is string => typeof t === "string" && t.trim().length > 0);
+
+  if (!metrics.length && !stats.length && !emotions.length && !feedback.length) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="rounded-2xl border border-border/50 bg-card p-6 space-y-5"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Video className="h-5 w-5 text-accent" />
+          <h2 className="text-base font-semibold text-card-foreground">Facial Expression &amp; Body Language</h2>
+        </div>
+        {overall !== null && (
+          <div className="flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1">
+            <Gauge className="h-3.5 w-3.5 text-accent" />
+            <span className={`text-sm font-semibold tabular-nums ${scoreTextClass(overall)}`}>{overall}/100</span>
+          </div>
+        )}
+      </div>
+
+      {metrics.length > 0 && (
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {metrics.map((m) => (
+            <MetricBar key={m.label} label={m.label} value={m.value} />
+          ))}
+        </div>
+      )}
+
+      {stats.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {stats.map((s) => (
+            <StatPill key={s.label} label={s.label} value={s.value} />
+          ))}
+        </div>
+      )}
+
+      {emotions.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5">
+            <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold text-muted-foreground">Emotion Distribution</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {emotions.map((e) => (
+              <span
+                key={e.emotion}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-secondary/30 px-2.5 py-1 text-xs capitalize text-card-foreground"
+              >
+                {e.emotion}
+                <span className="font-semibold text-accent tabular-nums">{e.pct}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {feedback.length > 0 && (
+        <div className="rounded-xl border border-border/40 bg-secondary/20 p-4">
+          <div className="mb-2 flex items-center gap-1.5">
+            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold text-muted-foreground">What your expressions conveyed</p>
+          </div>
+          <FeedbackBullets items={feedback} color="bg-accent" />
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -292,18 +547,25 @@ export default function LiveResultsPage() {
   const voiceScore   = typeof aiReport?.voice_score  === "number" ? aiReport.voice_score  : null;
   const facialScore  = typeof aiReport?.facial_score === "number" ? aiReport.facial_score : null;
 
+  // Full voice / facial sub-reports (clarity, tone, emotions, eye contact, …)
+  const voiceData    = aiReport?.voice  && typeof aiReport.voice  === "object" ? aiReport.voice  : null;
+  const facialData   = aiReport?.facial && typeof aiReport.facial === "object" ? aiReport.facial : null;
+
   // Which models actually ran (avoids showing "0" as if it were a real score)
   const modelsRan    = aiReport?.models_ran as { stt?: boolean; nlp?: boolean; voice?: boolean; facial?: boolean } | undefined;
   const sttUsed      = modelsRan?.stt ?? false;
   const transcript   = typeof aiReport?.nlp?.transcript === "string" ? aiReport.nlp.transcript : null;
 
-  // Scoring configuration
+  // Scoring configuration.
+  // The final score is a true 50/50 average of the GENUINE AI score and the
+  // human score. We recompute it from the two numbers actually shown on screen
+  // so the "Average of AI (X) and Human (Y)" line can never disagree with the
+  // circle. When only one side exists, that score stands alone.
   const humanScore   = typeof booking.humanScore === "number" ? booking.humanScore : null;
-  const computedCombined = aiScore !== null && humanScore !== null
-    ? Math.round((aiScore * 0.5) + (humanScore * 0.5))
-    : aiScore ?? humanScore;
-
-  const finalCombinedScore = typeof booking.combinedScore === "number" ? booking.combinedScore : computedCombined;
+  const finalCombinedScore =
+    aiScore !== null && humanScore !== null
+      ? Math.round((aiScore + humanScore) / 2)
+      : aiScore ?? humanScore ?? (typeof booking.combinedScore === "number" ? booking.combinedScore : null);
 
   return (
     <PremiumLayout backHref="/live-interview/my-bookings" backLabel="My Bookings">
@@ -388,7 +650,7 @@ export default function LiveResultsPage() {
               )}
             </div>
 
-            {/* Voice & Facial scores from the recording pipeline */}
+            {/* Voice & Facial quick scores (detailed breakdowns render below) */}
             {(voiceScore !== null || facialScore !== null) && (
               <div className="grid gap-4 sm:grid-cols-2">
                 {voiceScore !== null && (
@@ -440,6 +702,12 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
+        {/* Detailed Voice & Speech analysis */}
+        {hasAiReport && voiceData && <VoiceAnalysisCard voice={voiceData} />}
+
+        {/* Detailed Facial expression & body-language analysis */}
+        {hasAiReport && facialData && <FacialAnalysisCard facial={facialData} />}
+
         {/* Fallback when AI analysis failed (e.g. AI service was unreachable) */}
         {!hasAiReport && isReady && (
           <motion.div
@@ -477,7 +745,7 @@ export default function LiveResultsPage() {
               {humanScore !== null && (
                 <div className="flex items-center gap-2 rounded-full bg-accent/10 border border-accent/20 px-3 py-1">
                   <Star className="h-3.5 w-3.5 text-accent" />
-                  <span className="text-sm font-semibold text-accent">{humanScore}/100</span>
+                  <span className={`text-sm font-semibold ${scoreTextClass(humanScore)}`}>{humanScore}/100</span>
                 </div>
               )}
             </div>

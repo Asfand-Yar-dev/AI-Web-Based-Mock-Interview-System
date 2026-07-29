@@ -46,6 +46,32 @@ async function notifyBothParties(booking) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Recompute the genuine AI overall score from a report's real sub-scores using
+ * the same weighting as the AI gateway: NLP 50%, Voice 30%, Facial 20%.
+ * A dimension is excluded if it didn't run (score absent or 0) so a missing
+ * model never drags the average down. Returns a 0–100 integer, or null when
+ * no model produced a score (so the caller can fall back to the human score).
+ */
+function recomputeAiOverall(report) {
+  if (!report || typeof report !== 'object') return null;
+
+  const nlpDims = ['technical_score', 'communication_score', 'confidence_score', 'problem_solving_score']
+    .map((k) => report[k])
+    .filter((v) => typeof v === 'number' && !Number.isNaN(v));
+  const nlpScore = nlpDims.length
+    ? nlpDims.reduce((a, b) => a + b, 0) / nlpDims.length
+    : 0;
+  const voice  = typeof report.voice_score  === 'number' ? report.voice_score  : 0;
+  const facial = typeof report.facial_score === 'number' ? report.facial_score : 0;
+
+  const weighted = [[nlpScore, 0.5], [voice, 0.3], [facial, 0.2]].filter(([s]) => s > 0);
+  if (!weighted.length) return null;
+
+  const totalW = weighted.reduce((a, [, w]) => a + w, 0);
+  return Math.round(weighted.reduce((a, [s, w]) => a + s * w, 0) / totalW);
+}
+
 async function _interviewerIdFor(userId) {
   let profile = await Interviewer.findOne({ userId });
   if (!profile) {
@@ -207,7 +233,7 @@ async function respondToBooking(req, res) {
 
     logger.info(`[booking] ${booking._id} accepted by interviewer ${intvId}`);
 
-    emitBookingChanged(booking.applicantId);
+    notifyBothParties(booking).catch(() => {});
 
     // Notify the applicant to pay
     const checkoutUrl = `${PUBLIC_APP_URL}/live-interview/checkout/${booking._id}`;
@@ -255,7 +281,10 @@ async function respondToBooking(req, res) {
     await booking.save();
 
     logger.info(`[booking] ${booking._id} declined by ${intvId} — reassigned to ${nextInterviewer._id}`);
-    emitBookingChanged(booking.applicantId);
+    // Notify applicant + the newly assigned interviewer (so the new request
+    // appears live on their dashboard). The interviewer who declined refreshes
+    // client-side from their own action.
+    notifyBothParties(booking).catch(() => {});
 
     return res.status(HTTP_STATUS.OK).json({
       success: true,
@@ -269,7 +298,7 @@ async function respondToBooking(req, res) {
   await booking.save();
 
   logger.info(`[booking] ${booking._id} rejected by interviewer ${intvId} — no other interviewer available${note ? ` — reason: ${note}` : ''}`);
-  emitBookingChanged(booking.applicantId);
+  notifyBothParties(booking).catch(() => {});
 
   if (applicant?.email) {
     sendBookingRejected({
@@ -563,6 +592,7 @@ async function notifyRecordingUploaded(req, res) {
   }
   booking.meetingEndedAt = booking.meetingEndedAt || new Date();
   await booking.save();
+  notifyBothParties(booking).catch(() => {});
 
   liveAiService.queueLiveAnalysis(booking._id).catch(err =>
     logger.error(`AI pipeline kickoff failed for ${booking._id}: ${err.message}`)
@@ -601,7 +631,7 @@ async function handleAiAnalysisWebhook(req, res) {
   }
 
   if (booking && booking.status === LIVE_BOOKING_STATUS.RESULTS_READY) {
-    emitBookingChanged(booking.applicantId);
+    notifyBothParties(booking).catch(() => {});
     const applicant = await User.findById(booking.applicantId).catch(() => null);
     if (applicant?.email) {
       sendResultsReady({
@@ -674,55 +704,81 @@ async function submitInterviewerFeedback(req, res) {
     booking.interviewTranscript = cleanTranscript;
   }
 
-  // ── AI Analysis (synchronous — ~3-10 s Groq call) ─────────────────────────
-  // Runs regardless of whether the interviewer provided a transcript.
-  try {
-    const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-    const aiPayload = {
-      role:              booking.role,
-      domain:            booking.domain,
-      skills:            booking.skills || [],
-      interviewer_score: humanScore,
-    };
-    if (cleanTranscript) aiPayload.transcript = cleanTranscript;
+  // ── Reconcile AI report (preserve & merge — never fabricate, never wipe) ──
+  // The recording pipeline already produced the genuine 360° analysis
+  // (NLP + voice + facial). We keep that intact. ONLY when the interviewer
+  // pastes a real Q&A transcript do we ask the AI to score the actual answers,
+  // and we MERGE those NLP dimensions into the existing report so the voice and
+  // facial analysis are preserved. With no transcript we add nothing — we never
+  // invent AI numbers from the human score.
+  if (cleanTranscript) {
+    try {
+      const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const aiRes = await fetch(`${AI_URL}/api/ai/evaluate-live-interview`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role:              booking.role,
+          domain:            booking.domain,
+          skills:            booking.skills || [],
+          transcript:        cleanTranscript,
+          interviewer_score: humanScore,
+        }),
+        signal: AbortSignal.timeout(20000), // 20 s max — Groq is fast
+      });
 
-    const aiRes = await fetch(`${AI_URL}/api/ai/evaluate-live-interview`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(aiPayload),
-      signal: AbortSignal.timeout(20000), // 20 s max — Groq is fast
-    });
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        if (aiData.status === 'success') {
+          const existing = (booking.aiReport && typeof booking.aiReport === 'object')
+            ? { ...booking.aiReport }
+            : {};
+          // Merge transcript-based NLP scores; keep voice/facial sub-reports.
+          existing.technical_score       = aiData.technical_score;
+          existing.communication_score   = aiData.communication_score;
+          existing.confidence_score      = aiData.confidence_score;
+          existing.problem_solving_score = aiData.problem_solving_score;
+          existing.questions_evaluated   = aiData.questions_evaluated ?? existing.questions_evaluated ?? 0;
+          if (Array.isArray(aiData.strengths)    && aiData.strengths.length)    existing.strengths    = aiData.strengths;
+          if (Array.isArray(aiData.improvements) && aiData.improvements.length) existing.improvements = aiData.improvements;
+          if (typeof aiData.summary === 'string' && aiData.summary.trim())      existing.summary      = aiData.summary;
+          existing.nlp        = { ...(existing.nlp || {}), ...aiData, transcript: cleanTranscript.slice(0, 3000) };
+          existing.models_ran = { ...(existing.models_ran || {}), nlp: true };
+          // Re-derive the AI overall now that NLP content scores are present.
+          existing.overall_score = recomputeAiOverall(existing);
 
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      if (aiData.status === 'success') {
-        booking.aiReport      = aiData;
-        booking.aiCompletedAt = new Date();
-
-        // ── Combined score: AI 50% + Human 50% ────────────────────────────
-        const aiOverall = Number(aiData.overall_score) || 0;
-        booking.combinedScore = Math.round((aiOverall * 0.5) + (humanScore * 0.5));
-
-        logger.info(
-          `[feedback] AI analysis complete for ${booking._id}: ` +
-          `ai=${aiOverall}, human=${humanScore}, combined=${booking.combinedScore}`
-        );
+          booking.aiReport = existing;
+          booking.markModified('aiReport');
+          booking.aiCompletedAt = new Date();
+          logger.info(`[feedback] merged transcript NLP into report for ${booking._id}, ai_overall=${existing.overall_score}`);
+        } else {
+          logger.warn(`[feedback] AI returned non-success for ${booking._id}: ${aiData.message}`);
+        }
       } else {
-        logger.warn(`[feedback] AI returned non-success for ${booking._id}: ${aiData.message}`);
+        const errText = await aiRes.text().catch(() => '');
+        logger.warn(`[feedback] AI gateway responded ${aiRes.status} for ${booking._id}: ${errText}`);
       }
-    } else {
-      const errText = await aiRes.text().catch(() => '');
-      logger.warn(`[feedback] AI gateway responded ${aiRes.status} for ${booking._id}: ${errText}`);
+    } catch (aiErr) {
+      // Non-blocking — human score is always saved even if AI fails
+      logger.error(`[feedback] AI evaluation failed for ${booking._id}: ${aiErr.message}`);
     }
-  } catch (aiErr) {
-    // Non-blocking — human score is always saved even if AI fails
-    logger.error(`[feedback] AI evaluation failed for ${booking._id}: ${aiErr.message}`);
   }
+
+  // ── Final score: 50/50 average of the GENUINE AI score and the human score ─
+  // If the AI never produced a real score, the human score stands alone — we
+  // never average against a fabricated AI number.
+  const aiOverall = (booking.aiReport && typeof booking.aiReport.overall_score === 'number')
+    ? booking.aiReport.overall_score
+    : null;
+  booking.combinedScore = aiOverall !== null
+    ? Math.round((aiOverall + humanScore) / 2)
+    : humanScore;
+  logger.info(`[feedback] final score for ${booking._id}: ai=${aiOverall}, human=${humanScore}, combined=${booking.combinedScore}`);
 
   // ── Always mark results ready once human feedback is submitted ────────────
   booking.status = LIVE_BOOKING_STATUS.RESULTS_READY;
   await booking.save();
-  emitBookingChanged(booking.applicantId);
+  notifyBothParties(booking).catch(() => {});
 
   // ── Notify applicant ──────────────────────────────────────────────────────
   const applicant = await User.findById(booking.applicantId);

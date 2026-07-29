@@ -79,7 +79,8 @@ const FB_DIMENSIONS = [
 type FbDimensionKey = (typeof FB_DIMENSIONS)[number]["key"];
 
 function scoreColor(v: number): string {
-  return v >= 80 ? "#10b981" : v >= 60 ? "#f59e0b" : "#ef4444";
+  // ≤50 red, 51–75 yellow, 76–100 green
+  return v <= 50 ? "#ef4444" : v <= 75 ? "#f59e0b" : "#10b981";
 }
 
 function FbDimensionSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
@@ -615,13 +616,13 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-white">Interview Feedback</h2>
-                  <p className="text-xs text-white/50">Your score and notes complete the candidate&apos;s 360° report.</p>
+                  <p className="text-xs text-white/50">Your score and notes complete the applicant&apos;s 360° report.</p>
                 </div>
               </div>
 
               {/* Per-dimension scores */}
               <label className="mb-2 block text-sm font-medium text-white/80">
-                Rate the candidate on each dimension
+                Rate the applicant on each dimension
               </label>
               <div className="mb-5 grid grid-cols-1 gap-x-5 gap-y-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
                 {FB_DIMENSIONS.map((d) => (
@@ -674,7 +675,7 @@ export function LiveInterviewRoom({ bookingId, meetingRoomId, isApplicant = true
                 value={fbTranscript}
                 onChange={(e) => setFbTranscript(e.target.value)}
                 rows={4}
-                placeholder={"Paste the questions you asked and the candidate's answers, e.g.\nQ: ...\nA: ..."}
+                placeholder={"Paste the questions you asked and the applicant's answers, e.g.\nQ: ...\nA: ..."}
                 className="mb-2 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-accent/50 focus:outline-none"
               />
               <div className="mb-5 flex items-start gap-2 text-xs text-white/40">

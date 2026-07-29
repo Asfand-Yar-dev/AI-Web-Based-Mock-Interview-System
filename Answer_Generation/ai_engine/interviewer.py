@@ -372,6 +372,42 @@ Generate the feedback now:"""
                 f"Consider exploring this topic further to strengthen your understanding."
             )
 
+    def generate_model_answer(self, question: str, role: str = "", skills=None) -> str:
+        """
+        Generate a concise, correct model answer to an interview question — the
+        kind of answer a strong candidate for the given role would give.
+
+        Args:
+            question (str): The interview question.
+            role (str):     The role/job title the candidate is interviewing for.
+            skills (list):  Relevant skills/topics (optional).
+
+        Returns:
+            str: A short, correct model answer (2–5 sentences, plain text).
+        """
+        skills_str = ", ".join(skills) if skills else ""
+        prompt = f"""You are an expert {role or 'technical'} interviewer. Write the ideal, correct answer to the interview question below — the kind of answer a strong candidate would give.
+
+QUESTION:
+{question}
+{f'RELEVANT SKILLS: {skills_str}' if skills_str else ''}
+
+REQUIREMENTS:
+- 2 to 5 sentences, specific and technically correct.
+- Plain text only — NO markdown, NO bullet points, NO headers, NO preamble.
+- Just the answer itself.
+
+Model answer:"""
+        try:
+            answer = self._generate_with_retry(prompt)
+            answer = re.sub(r'\*\*([^*]+)\*\*', r'\1', answer)
+            answer = re.sub(r'\*([^*]+)\*', r'\1', answer)
+            answer = re.sub(r'^[-*•]\s*', '', answer, flags=re.MULTILINE)
+            return answer.strip()
+        except Exception as e:
+            logger.error(f"Error generating model answer: {str(e)}")
+            return ""
+
     def evaluate_technical_score(self, question: str, user_answer: str, reference_answer: str = "") -> int:
         """
         Perform high-fidelity technical scoring of the candidate's response.

@@ -35,6 +35,11 @@ export interface User {
   createdAt: string;
   updatedAt?: string;
   lastLogin?: string;
+  settings?: {
+    emailNotifications: boolean;
+    interviewReminders: boolean;
+    resultNotifications: boolean;
+  };
 }
 
 export interface AuthResponse {
@@ -45,6 +50,19 @@ export interface AuthResponse {
     token: string;
     isNewUser?: boolean;
     authProvider?: string;
+  };
+}
+
+/**
+ * Registration now starts an email-verification (OTP) flow instead of logging
+ * the user straight in — so no token comes back, just the email to verify.
+ */
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  requiresVerification?: boolean;
+  data: {
+    email: string;
   };
 }
 
@@ -110,12 +128,29 @@ export interface AdminDashboardResponse {
     };
     adminSettings: {
       environment: string;
+      port: string;
       aiEnabled: boolean;
       whisperModel: string;
       jwtExpiry: string;
+      jwtRefreshExpiry: string;
       rateLimit: number;
+      rateLimitWindowMinutes: number;
       authRateLimit: number;
       corsOrigin: string;
+      bcryptRounds: number;
+      logLevel: string;
+      maxFileSizeMb: number;
+      bodySizeLimitMb: number;
+      aiServiceUrl: string;
+      aiTimeoutSeconds: number;
+      aiMaxRetries: number;
+      useNlpAi: boolean;
+      useVocalAi: boolean;
+      useFacialAi: boolean;
+      useSttAi: boolean;
+      groqConfigured: boolean;
+      googleConfigured: boolean;
+      mongoHost: string;
       notifyOnCriticalDegradation: boolean;
     };
     feedbackMonitoring: {
@@ -313,7 +348,13 @@ async function apiRequest<T>(
     // Handle error responses
     if (!response.ok || data.success === false) {
       const errorMessage = data.message || `Request failed with status ${response.status}`;
-      throw new Error(errorMessage);
+      // Preserve any machine-readable fields the backend sent (e.g. an
+      // EMAIL_NOT_VERIFIED code + the email) so callers can react to them.
+      const err = new Error(errorMessage) as Error & { code?: string; status?: number; email?: string };
+      if (data.code) err.code = data.code;
+      if (data.email) err.email = data.email;
+      err.status = response.status;
+      throw err;
     }
 
     return data as T;
@@ -334,20 +375,35 @@ async function apiRequest<T>(
 
 export const authApi = {
   /**
-   * Register a new user
+   * Register a new user. This no longer logs the user in — it kicks off email
+   * verification, so the caller must send the user to the OTP step.
    */
-  async register(name: string, email: string, password: string, role?: string): Promise<AuthResponse> {
-    const response = await apiRequest<AuthResponse>(API_ENDPOINTS.AUTH.REGISTER, {
+  async register(name: string, email: string, password: string, role?: string): Promise<RegisterResponse> {
+    return apiRequest<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
       method: 'POST',
       body: { name, email, password, role },
     });
-    
-    // Store auth data on successful registration
-    if (response.success && response.data) {
-      storeAuthData(response.data.user, response.data.token);
-    }
-    
-    return response;
+  },
+
+  /**
+   * Verify the 6-digit code emailed at sign-up. On success the account is
+   * activated and the user can log in.
+   */
+  async verifyEmailOtp(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(API_ENDPOINTS.AUTH.VERIFY_EMAIL_OTP, {
+      method: 'POST',
+      body: { email, otp },
+    });
+  },
+
+  /**
+   * Resend the sign-up verification code.
+   */
+  async resendEmailOtp(email: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(API_ENDPOINTS.AUTH.RESEND_EMAIL_OTP, {
+      method: 'POST',
+      body: { email },
+    });
   },
 
   /**
@@ -358,12 +414,12 @@ export const authApi = {
       method: 'POST',
       body: { email, password },
     });
-    
+
     // Store auth data on successful login
     if (response.success && response.data) {
       storeAuthData(response.data.user, response.data.token);
     }
-    
+
     return response;
   },
 
@@ -379,8 +435,8 @@ export const authApi = {
   ): Promise<AuthResponse> {
     const body: { idToken?: string; accessToken?: string; authCode?: string; role?: string } =
       tokenType === 'idToken' ? { idToken: token }
-      : tokenType === 'accessToken' ? { accessToken: token }
-      : { authCode: token };
+        : tokenType === 'accessToken' ? { accessToken: token }
+          : { authCode: token };
 
     if (role) body.role = role;
 
@@ -416,7 +472,7 @@ export const authApi = {
         requireAuth: true,
       }
     );
-    
+
     // Update stored user data
     if (response.success && response.data) {
       const token = getToken();
@@ -424,7 +480,7 @@ export const authApi = {
         storeAuthData(response.data, token);
       }
     }
-    
+
     return response;
   },
 
@@ -526,7 +582,22 @@ export const authApi = {
   async upgradePlan(plan: 'pro' | 'free' = 'pro'): Promise<{ success: boolean; message: string; data: { user: User; token: string } }> {
     return apiRequest('/api/users/upgrade-plan', {
       method: 'POST',
-      body:   { plan },
+      body: { plan },
+      requireAuth: true,
+    });
+  },
+  /**
+   * Update user notification/preference settings
+   * PATCH /api/users/settings
+   */
+  async updateSettings(settings: {
+    emailNotifications?: boolean;
+    interviewReminders?: boolean;
+    resultNotifications?: boolean;
+  }): Promise<{ success: boolean; message: string; data: { settings: { emailNotifications: boolean; interviewReminders: boolean; resultNotifications: boolean } } }> {
+    return apiRequest(API_ENDPOINTS.AUTH.UPDATE_SETTINGS, {
+      method: 'PATCH',
+      body: settings,
       requireAuth: true,
     });
   },
@@ -684,7 +755,13 @@ export const interviewApi = {
         category: string;
         difficulty: string;
         answer: string;
+        /** What the applicant actually answered (transcription or typed). */
+        applicantAnswer?: string;
         score: number;
+        /** True when the answer was attempted and scored above the wrong threshold. */
+        isCorrect?: boolean;
+        /** Ideal answer — only present when the applicant's answer was wrong. */
+        modelAnswer?: string;
         feedback: string;
       }>;
       summary: string;
@@ -824,7 +901,7 @@ export const answersApi = {
       formData.append('questionId', data.question_id);
       formData.append('audioDuration', (data.audio_duration || 0).toString());
       if (data.answer_text) formData.append('answerText', data.answer_text);
-      
+
       if (data.audio_blob) {
         formData.append('audio', data.audio_blob, 'recording.webm');
       }
@@ -833,7 +910,7 @@ export const answersApi = {
       if (data.video_blob) {
         formData.append('video', data.video_blob, 'recording.webm');
       }
-      
+
       return apiRequest(`/api/interviews/${data.session_id}/answers`, {
         method: 'POST',
         body: formData, // apiRequest will need to handle FormData
@@ -870,6 +947,25 @@ export const answersApi = {
 // ADMIN API
 // =============================================================================
 
+export interface AdminErrorEntry {
+  id: number;
+  timestamp: string | null;
+  level: string;
+  message: string;
+  url: string | null;
+  method: string | null;
+  stack: string | null;
+}
+
+export interface AdminErrorsResponse {
+  success: boolean;
+  data: {
+    total: number;
+    byLevel: Record<string, number>;
+    entries: AdminErrorEntry[];
+  };
+}
+
 export const adminApi = {
   /**
    * Get full admin dashboard data (requires admin role)
@@ -878,6 +974,16 @@ export const adminApi = {
     return apiRequest<AdminDashboardResponse>(API_ENDPOINTS.ADMIN.DASHBOARD, {
       requireAuth: true,
     });
+  },
+
+  /**
+   * Get the last N error log entries (requires admin role)
+   */
+  async getErrors(limit = 100): Promise<AdminErrorsResponse> {
+    return apiRequest<AdminErrorsResponse>(
+      `${API_ENDPOINTS.ADMIN.DASHBOARD.replace('/dashboard', '/errors')}?limit=${limit}`,
+      { requireAuth: true },
+    );
   },
 };
 

@@ -8,7 +8,7 @@ import { ScoreCard } from "@/components/results/score-card"
 import { FeedbackSection } from "@/components/results/feedback-section"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
-import { ArrowLeft, RotateCcw, Loader2 } from "lucide-react"
+import { ArrowLeft, RotateCcw, Loader2, Download } from "lucide-react"
 import { interviewApi } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -17,6 +17,11 @@ interface QuestionResult {
   questionNumber: number;
   question: string;
   score: number;
+  /** What the applicant actually answered. */
+  applicantAnswer?: string;
+  /** Ideal answer — only present when the applicant's answer was wrong. */
+  modelAnswer?: string;
+  isCorrect?: boolean;
 }
 
 // Type for the feedback displayed on this page
@@ -75,6 +80,9 @@ export default function ResultsPage() {
               questionNumber: q.questionNumber,
               question: q.question,
               score: q.score,
+              applicantAnswer: q.applicantAnswer,
+              modelAnswer: q.modelAnswer,
+              isCorrect: q.isCorrect,
             })),
           };
           setFeedback(newFeedback)
@@ -166,6 +174,138 @@ export default function ResultsPage() {
 
   const overallCirc = 2 * Math.PI * 62
   const overallOffset = overallCirc - (feedback.overallScore / 100) * overallCirc
+
+  // Build a styled report and open the browser print dialog (Save as PDF).
+  const downloadReport = () => {
+    if (!feedback) return
+    const esc = (s: string) =>
+      String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    const col = (n: number) => (n <= 50 ? "#ef4444" : n <= 75 ? "#f59e0b" : "#10b981")
+    const dims: [string, number][] = [
+      ["Technical", feedback.technicalScore],
+      ["Communication", feedback.clarityScore],
+      ["Voice", feedback.voiceToneScore],
+      ["Confidence", feedback.confidenceScore],
+      ["Body language", feedback.bodyLanguageScore],
+      ["Face presence", feedback.facePresence],
+    ]
+    const listItems = (arr: string[], cls: string) =>
+      arr.length
+        ? arr.map((s) => `<li>${esc(s)}</li>`).join("")
+        : `<li class="${cls}-empty">No items recorded.</li>`
+
+    // Overall score ring geometry
+    const RING_R = 50
+    const ringCirc = 2 * Math.PI * RING_R
+    const ringOffset = ringCirc * (1 - Math.max(0, Math.min(100, feedback.overallScore)) / 100)
+    const overallColor = col(feedback.overallScore)
+    const band =
+      feedback.overallScore >= 75
+        ? { t: "Strong performance", bg: "#dcfce7", fg: "#15803d" }
+        : feedback.overallScore >= 50
+          ? { t: "Good progress", bg: "#fef3c7", fg: "#b45309" }
+          : { t: "Keep practicing", bg: "#fee2e2", fg: "#b91c1c" }
+    const metaLine = [feedback.jobTitle && esc(feedback.jobTitle), reportDateLabel, `${feedback.questionsAnswered} question(s)`]
+      .filter(Boolean)
+      .join("&nbsp;&nbsp;•&nbsp;&nbsp;")
+
+    const html = `<!doctype html><html><head><meta charset="utf-8" />
+<title>Intervexa Report${feedback.jobTitle ? " — " + esc(feedback.jobTitle) : ""}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',-apple-system,Roboto,Helvetica,Arial,sans-serif;color:#0f172a;background:#fff;font-size:13px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .brand{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#0f9d6b,#0b6e4b);color:#fff;padding:22px 32px}
+  .brand .logo{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .brand .tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;opacity:.9;text-align:right}
+  .body{padding:30px 32px}
+  .hero{display:flex;align-items:center;gap:28px;border:1px solid #e5e7eb;border-radius:16px;padding:22px 26px;margin-bottom:28px;background:#f8fafc}
+  .ring{position:relative;width:120px;height:120px;flex:none}
+  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .num b{font-size:34px;font-weight:800;line-height:1}
+  .ring .num small{font-size:10px;color:#64748b;margin-top:2px}
+  .hero h1{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:5px}
+  .hero .meta{color:#64748b;font-size:12.5px}
+  .badge{display:inline-block;margin-top:12px;padding:5px 13px;border-radius:999px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .section{margin-bottom:26px;page-break-inside:avoid}
+  .stitle{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#0f9d6b;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+  .stitle::after{content:"";flex:1;height:1px;background:#e5e7eb}
+  .bar{display:flex;align-items:center;gap:12px;margin:10px 0}
+  .bar .lbl{width:120px;flex:none;font-weight:600;font-size:12.5px;color:#334155}
+  .bar .track{flex:1;height:8px;border-radius:999px;background:#eef2f7;overflow:hidden}
+  .bar .fill{height:100%;border-radius:999px}
+  .bar .val{width:42px;flex:none;text-align:right;font-weight:800;font-size:12.5px}
+  .cols{display:flex;gap:16px}
+  .card{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:15px 17px}
+  .card h3{font-size:12px;font-weight:800;margin-bottom:9px;text-transform:uppercase;letter-spacing:.05em}
+  .card.s h3{color:#0f9d6b}
+  .card.i h3{color:#d97706}
+  .card ul{list-style:none}
+  .card li{position:relative;padding-left:16px;margin:7px 0;font-size:12px;color:#374151;line-height:1.5}
+  .card li::before{content:"";position:absolute;left:0;top:6px;width:6px;height:6px;border-radius:50%}
+  .card.s li::before{background:#0f9d6b}
+  .card.i li::before{background:#d97706}
+  .card li[class$="-empty"]{color:#94a3b8;padding-left:0}
+  .card li[class$="-empty"]::before{display:none}
+  .analysis{border:1px solid #e5e7eb;border-left:4px solid #0f9d6b;border-radius:10px;padding:15px 18px;background:#f8fafc;font-size:12.5px;line-height:1.7;color:#334155}
+  .qcard{border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:12px;page-break-inside:avoid}
+  .qhead{display:flex;gap:11px;align-items:flex-start}
+  .qnum{width:26px;height:26px;flex:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .qtext{flex:1;font-weight:700;font-size:13px;color:#0f172a;line-height:1.4}
+  .qscore{flex:none;font-weight:800;font-size:16px;min-width:32px;text-align:right}
+  .alabel{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin:11px 0 4px 37px}
+  .atext{font-size:12px;color:#334155;line-height:1.55;background:#f8fafc;border:1px solid #eef2f7;border-radius:8px;padding:9px 11px;margin-left:37px}
+  .alabel.ok{color:#059669}
+  .atext.ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+  .foot{margin-top:6px;padding:16px 32px;border-top:1px solid #e5e7eb;color:#94a3b8;font-size:10.5px;display:flex;justify-content:space-between}
+  @page{margin:12mm}
+</style></head><body>
+  <div class="brand">
+    <div class="logo">Intervexa</div>
+    <div class="tag">Interview Performance Report</div>
+  </div>
+  <div class="body">
+    <div class="hero">
+      <div class="ring">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="${RING_R}" fill="none" stroke="#e8edf3" stroke-width="11"/>
+          <circle cx="60" cy="60" r="${RING_R}" fill="none" stroke="${overallColor}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${ringCirc.toFixed(1)}" stroke-dashoffset="${ringOffset.toFixed(1)}" transform="rotate(-90 60 60)"/>
+        </svg>
+        <div class="num"><b style="color:${overallColor}">${feedback.overallScore}</b><small>/ 100</small></div>
+      </div>
+      <div>
+        <h1>${feedback.jobTitle ? esc(feedback.jobTitle) : "Interview Report"}</h1>
+        <div class="meta">${metaLine}</div>
+        <span class="badge" style="background:${band.bg};color:${band.fg}">${band.t}</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="stitle">Score breakdown</div>
+      ${dims.map(([l, s]) => `<div class="bar"><span class="lbl">${l}</span><span class="track"><span class="fill" style="width:${Math.max(0, Math.min(100, s))}%;background:${col(s)}"></span></span><span class="val" style="color:${col(s)}">${s}</span></div>`).join("")}
+    </div>
+
+    <div class="section">
+      <div class="cols">
+        <div class="card s"><h3>Strengths</h3><ul>${listItems(feedback.strengths, "s")}</ul></div>
+        <div class="card i"><h3>Areas to improve</h3><ul>${listItems(feedback.improvements, "i")}</ul></div>
+      </div>
+    </div>
+
+    ${feedback.detailedFeedback ? `<div class="section"><div class="stitle">Detailed analysis</div><div class="analysis">${esc(feedback.detailedFeedback)}</div></div>` : ""}
+
+    ${feedback.questionBreakdown.length ? `<div class="section"><div class="stitle">Question breakdown</div>${feedback.questionBreakdown.map((q) => `<div class="qcard"><div class="qhead"><span class="qnum">${String(q.questionNumber).padStart(2, "0")}</span><span class="qtext">${esc(q.question)}</span><span class="qscore" style="color:${col(q.score)}">${q.score}</span></div>${q.applicantAnswer ? `<div class="alabel">Your answer</div><div class="atext">${esc(q.applicantAnswer)}</div>` : ""}${q.modelAnswer ? `<div class="alabel ok">Correct answer</div><div class="atext ok">${esc(q.modelAnswer)}</div>` : ""}</div>`).join("")}</div>` : ""}
+  </div>
+  <div class="foot"><span>Generated by Intervexa</span><span>${reportDateLabel || ""}</span></div>
+  <script>window.onload=function(){setTimeout(function(){window.print()},250)};window.onafterprint=function(){window.close()};</script>
+</body></html>`
+
+    const w = window.open("", "_blank")
+    if (!w) return // popup blocked — nothing to do
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+  }
 
   return (
     <DashboardLayout>
@@ -321,22 +461,45 @@ export default function ResultsPage() {
             </h3>
             <ul className="divide-y divide-border/50">
               {feedback.questionBreakdown.map((q) => (
-                <li
-                  key={q.questionNumber}
-                  className="flex items-center gap-4 px-6 py-4 text-sm"
-                >
-                  <span className="font-mono text-xs text-faint shrink-0 w-6">
-                    {String(q.questionNumber).padStart(2, "0")}
-                  </span>
-                  <span className="flex-1 text-card-foreground/90 text-pretty">
-                    {q.question}
-                  </span>
-                  <span
-                    className="font-display text-base font-semibold tabular-nums shrink-0"
-                    style={{ color: ringColor(q.score) }}
-                  >
-                    {q.score}
-                  </span>
+                <li key={q.questionNumber} className="px-6 py-4 text-sm">
+                  <div className="flex items-start gap-4">
+                    <span className="font-mono text-xs text-faint shrink-0 w-6 mt-0.5">
+                      {String(q.questionNumber).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 text-card-foreground/90 font-medium text-pretty">
+                      {q.question}
+                    </span>
+                    <span
+                      className="font-display text-base font-semibold tabular-nums shrink-0"
+                      style={{ color: ringColor(q.score) }}
+                    >
+                      {q.score}
+                    </span>
+                  </div>
+
+                  {q.applicantAnswer && (
+                    <div className="mt-3 ml-10 space-y-2.5">
+                      <div>
+                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Your answer
+                        </p>
+                        <p className="whitespace-pre-wrap rounded-lg border border-border/40 bg-secondary/40 px-3 py-2 text-[13px] leading-relaxed text-card-foreground/85">
+                          {q.applicantAnswer}
+                        </p>
+                      </div>
+
+                      {q.modelAnswer && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-success">
+                            Correct answer
+                          </p>
+                          <p className="whitespace-pre-wrap rounded-lg border border-success/20 bg-success/10 px-3 py-2 text-[13px] leading-relaxed text-card-foreground/85">
+                            {q.modelAnswer}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -356,11 +519,15 @@ export default function ResultsPage() {
               Practice again
             </Button>
           </Link>
-          <Link href="/dashboard">
-            <Button variant="outline" className="w-full sm:w-auto bg-transparent border-border/50">
-              Back to dashboard
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            onClick={downloadReport}
+            disabled={feedback.isProcessing}
+            className="w-full sm:w-auto bg-transparent border-border/50 disabled:opacity-50"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download PDF
+          </Button>
         </motion.div>
       </div>
     </DashboardLayout>

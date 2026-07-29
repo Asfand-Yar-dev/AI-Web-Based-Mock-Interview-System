@@ -279,25 +279,66 @@ router.get('/dashboard', cache(redis.TTL.SHORT), asyncHandler(async (req, res) =
   ];
 
   // ── Admin settings — real env config ─────────────────────────────────────
-  const jwtExpiry  = process.env.JWT_EXPIRES_IN                     || '24h';
-  const rateLimit  = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS      || '100');  // matches server.js default
-  const authLimit  = parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '10');
-  const corsOrigin = process.env.CORS_ORIGIN                          || 'http://localhost:3000';
-  const aiEnabled  = process.env.USE_REAL_AI !== 'false';
-  const nodeEnv    = process.env.NODE_ENV                             || 'development';
+  const jwtExpiry         = process.env.JWT_EXPIRES_IN                     || '24h';
+  const jwtRefreshExpiry  = process.env.JWT_REFRESH_EXPIRES_IN              || '7d';
+  const rateLimit         = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS      || '100');
+  const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS         || '900000');
+  const authLimit         = parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '10');
+  const corsOrigin        = process.env.CORS_ORIGIN                          || 'http://localhost:3000';
+  const aiEnabled         = process.env.USE_REAL_AI !== 'false';
+  const nodeEnv           = process.env.NODE_ENV                             || 'development';
+  const port              = process.env.PORT                                 || '5000';
+  const bcryptRounds      = parseInt(process.env.BCRYPT_SALT_ROUNDS          || '12');
+  const logLevel          = process.env.LOG_LEVEL                            || 'info';
+  const maxFileSizeBytes  = parseInt(process.env.MAX_FILE_SIZE               || '10485760');
+  const aiServiceUrl      = process.env.AI_SERVICE_URL                       || 'http://localhost:8000';
+  const aiTimeoutMs       = parseInt(process.env.AI_SERVICE_TIMEOUT          || '30000');
+  const aiMaxRetries      = parseInt(process.env.AI_SERVICE_MAX_RETRIES      || '2');
+  const useNlpAi          = process.env.USE_NLP_AI    !== 'false';
+  const useVocalAi        = process.env.USE_VOCAL_AI  !== 'false';
+  const useFacialAi       = process.env.USE_FACIAL_AI !== 'false';
+  const useSttAi          = process.env.USE_STT_AI    !== 'false';
+  const groqConfigured    = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your-groq-api-key');
+  const googleConfigured  = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'your-google-client-id');
   // WHISPER_MODEL_SIZE lives in ai_gateway/.env — ask the gateway for it via healthCheck
   const whisperModel = aiHealth.whisper_model || aiHealth.whisperModel || 'base';
 
+  // Mask MongoDB URI — show host only, strip credentials
+  const rawMongoUri = process.env.MONGO_URI || '';
+  let mongoHost = '—';
+  try {
+    const url = new URL(rawMongoUri);
+    mongoHost = url.hostname + (url.port ? `:${url.port}` : '') + url.pathname;
+  } catch (_) { mongoHost = rawMongoUri.split('@').pop()?.split('?')[0] || '—'; }
+
   const adminSettings = {
     environment:                 nodeEnv,
+    port,
     aiEnabled,
     whisperModel,
     jwtExpiry,
+    jwtRefreshExpiry,
     rateLimit,
+    rateLimitWindowMinutes:      Math.round(rateLimitWindowMs / 60000),
     authRateLimit:               authLimit,
     corsOrigin,
-    notifyOnCriticalDegradation: false, // No alert system implemented yet
+    bcryptRounds,
+    logLevel,
+    maxFileSizeMb:               Math.round(maxFileSizeBytes / 1024 / 1024),
+    bodySizeLimitMb:             500,
+    aiServiceUrl,
+    aiTimeoutSeconds:            Math.round(aiTimeoutMs / 1000),
+    aiMaxRetries,
+    useNlpAi,
+    useVocalAi,
+    useFacialAi,
+    useSttAi,
+    groqConfigured,
+    googleConfigured,
+    mongoHost,
+    notifyOnCriticalDegradation: false,
   };
+
 
   // ── Access policies — real values from env ────────────────────────────────
   const accessPolicies = [
@@ -423,5 +464,60 @@ router.patch('/users/:id/plan', asyncHandler(async (req, res) => {
   });
 }));
 
+/**
+ * GET /api/admin/errors
+ * Returns the last 100 error log entries from error.log, newest first.
+ * Each entry includes: timestamp, level, message, url, method, stack (truncated).
+ */
+const fs   = require('fs');
+const path = require('path');
+
+router.get('/errors', asyncHandler(async (req, res) => {
+  const logPath = path.join(__dirname, '../error.log');
+  const limit   = Math.min(parseInt(req.query.limit || '100'), 200);
+
+  let entries = [];
+  try {
+    const raw   = fs.readFileSync(logPath, 'utf8');
+    const lines = raw.split('\n').filter(l => l.trim());
+    // Parse last `limit` lines (newest are at the end)
+    entries = lines
+      .slice(-limit)
+      .reverse()
+      .map((line, idx) => {
+        try {
+          const obj = JSON.parse(line);
+          return {
+            id:        idx,
+            timestamp: obj.timestamp || null,
+            level:     obj.level     || 'error',
+            message:   obj.message   || '(no message)',
+            url:       obj.url       || null,
+            method:    obj.method    || null,
+            // Truncate stack to first 3 lines for brevity
+            stack:     obj.stack
+              ? obj.stack.split('\n').slice(0, 4).join('\n')
+              : null,
+          };
+        } catch (_) {
+          return { id: idx, message: line.slice(0, 200), level: 'error', timestamp: null };
+        }
+      });
+  } catch (err) {
+    // Log file missing or unreadable — return empty list
+    logger.warn('Admin /errors: could not read error.log:', err.message);
+  }
+
+  // Summary counts by message category
+  const total   = entries.length;
+  const byLevel = entries.reduce((acc, e) => {
+    acc[e.level] = (acc[e.level] || 0) + 1;
+    return acc;
+  }, {});
+
+  res.status(200).json({ success: true, data: { total, byLevel, entries } });
+}));
+
 module.exports = router;
+
 

@@ -49,6 +49,8 @@ const {
   forgotPassword,
   verifyResetOtp,
   resetPassword,
+  verifyEmailOtp,
+  resendEmailOtp,
   updateSettings,
 } = require('../controllers/authController');
 
@@ -110,6 +112,20 @@ router.post('/verify-reset-otp', asyncHandler(verifyResetOtp));
  * @access  Public
  */
 router.post('/reset-password', asyncHandler(resetPassword));
+
+/**
+ * @route   POST /api/users/verify-email-otp
+ * @desc    Verify the 6-digit code emailed at sign-up (activates the account)
+ * @access  Public
+ */
+router.post('/verify-email-otp', asyncHandler(verifyEmailOtp));
+
+/**
+ * @route   POST /api/users/resend-email-otp
+ * @desc    Resend the sign-up verification code
+ * @access  Public
+ */
+router.post('/resend-email-otp', asyncHandler(resendEmailOtp));
 
 /**
  * @route   POST /api/users/refresh-token

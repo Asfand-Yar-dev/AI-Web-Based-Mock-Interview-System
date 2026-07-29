@@ -522,8 +522,53 @@ router.get('/:sessionId/results', authenticate, asyncHandler(async (req, res) =>
   const allStrengths = [...new Set(scoredAnalysisRows.flatMap(({ analysis: a }) => a.strengths || []))];
   const allImprovements = [...new Set(scoredAnalysisRows.flatMap(({ analysis: a }) => a.improvements || []))];
 
+  // ── Correct answers for wrong / weak responses ─────────────────────────────
+  // When an attempted answer isn't clearly good (score < 75) we generate the
+  // ideal answer once — grounded in the role/skills — and cache it on the
+  // Answer, so the results page can show what a strong answer would have been.
+  const PASS_THRESHOLD = 75;
+  const answerText = (a) => (a.transcription || a.answerText || '').trim();
+
+  // Generate the ideal answer for each completed answer that isn't clearly good
+  // (score < 75). Runs per-answer (not gated on the whole session being done) so
+  // a single failed/silent answer can't block the rest. Cached on the Answer.
+  const needsModelAnswer = answers.filter(
+    (a) =>
+      a.processingStatus === 'completed' &&
+      answerText(a).length > 0 &&
+      (a.evaluationScore ?? 0) < PASS_THRESHOLD &&
+      !a.modelAnswer &&
+      a.questionId?.questionText
+  );
+
+  if (needsModelAnswer.length) {
+    logger.info(`[results] session ${session._id}: generating ${needsModelAnswer.length} model answer(s)`);
+    const { generateModelAnswer } = require('../services/sessionInsightsService');
+    await Promise.all(
+      needsModelAnswer.slice(0, 12).map(async (a) => {
+        const ideal = await generateModelAnswer({
+          question: a.questionId.questionText,
+          role: session.jobTitle,
+          skills: session.skills,
+        });
+        if (ideal) {
+          a.modelAnswer = ideal; // reflect in this response
+          await Answer.updateOne({ _id: a._id }, { $set: { modelAnswer: ideal } }).catch((err) =>
+            logger.warn(`[results] failed to cache modelAnswer for ${a._id}: ${err.message}`)
+          );
+        } else {
+          logger.warn(`[results] model answer empty for answer ${a._id} — AI gateway returned nothing`);
+        }
+      })
+    );
+  }
+
   const questionFeedback = answers.map((answer, index) => {
     const analysis = analyses.find(a => a.answerId.toString() === answer._id.toString());
+    const applicantAnswer = answerText(answer);
+    const score = answer.evaluationScore || 0;
+    const attempted = applicantAnswer.length > 0;
+    const isCorrect = attempted && score >= PASS_THRESHOLD;
     return {
       id: answer._id,
       questionNumber: index + 1,
@@ -531,7 +576,12 @@ router.get('/:sessionId/results', authenticate, asyncHandler(async (req, res) =>
       category: answer.questionId?.category || 'General',
       difficulty: answer.questionId?.difficulty || 'Medium',
       answer: answer.answerText,
-      score: answer.evaluationScore || 0,
+      /** What the applicant actually said (spoken transcription or typed answer). */
+      applicantAnswer,
+      score,
+      isCorrect,
+      /** Ideal answer — only surfaced when the applicant's answer was wrong. */
+      modelAnswer: attempted && !isCorrect ? (answer.modelAnswer || '') : '',
       feedback: answer.feedback || 'Answer recorded successfully. AI analysis pending.',
       strengths: analysis?.strengths || [],
       improvements: analysis?.improvements || [],
@@ -548,6 +598,43 @@ router.get('/:sessionId/results', authenticate, asyncHandler(async (req, res) =>
   const isStillProcessing =
     completedAnswers.length < answeredQuestions ||
     (answeredQuestions === 0 && sessionAge < 180);
+
+  // ── Real, role-grounded session feedback ──────────────────────────────────
+  // Strengths / areas-to-improve are derived from the candidate's ACTUAL answers,
+  // evaluated against the role + skills they practised for — not generic
+  // score-bucket templates. Generated once from the full transcript and cached
+  // on the session so repeated results-page loads don't re-hit the AI.
+  let aiInsights =
+    session.ai_insights && Array.isArray(session.ai_insights.strengths)
+      ? session.ai_insights
+      : null;
+
+  if (!aiInsights && hasScoredAnswers && !isStillProcessing) {
+    const transcript = completedAnswers
+      .map((a) => {
+        const q = a.questionId?.questionText;
+        const ans = (a.transcription || a.answerText || '').trim();
+        return q && ans ? `Q: ${q}\nA: ${ans}` : null;
+      })
+      .filter(Boolean)
+      .join('\n\n');
+
+    const { generateSessionInsights } = require('../services/sessionInsightsService');
+    const generated = await generateSessionInsights({
+      role: session.jobTitle,
+      skills: session.skills,
+      transcript,
+    });
+
+    if (generated) {
+      aiInsights = { ...generated, generatedAt: new Date() };
+      session.ai_insights = aiInsights;
+      session.markModified('ai_insights');
+      await session.save().catch((err) =>
+        logger.warn(`[results] failed to cache ai_insights for ${session._id}: ${err.message}`)
+      );
+    }
+  }
 
   const results = {
     sessionId: session._id,
@@ -575,21 +662,29 @@ router.get('/:sessionId/results', authenticate, asyncHandler(async (req, res) =>
     },
     questionFeedback,
     summary:
-      answeredQuestions === 0
-        ? 'No answers were recorded for this session. Complete and submit answers to receive a meaningful score.'
-        : !hasScoredAnswers
-          ? 'Your answers were recorded but did not contain enough speech for a full evaluation. Try again with clearer audio.'
-          : `You completed ${answeredQuestions} answer(s) in this ${session.session_type || 'interview'} session.`,
-    strengths: hasScoredAnswers
-      ? allStrengths.length > 0
-        ? allStrengths
-        : ['Keep practicing with full spoken responses']
-      : ['Submit spoken answers so the AI can score your performance'],
-    improvements: hasScoredAnswers
-      ? allImprovements.length > 0
-        ? allImprovements
-        : ['Review feedback for each question']
-      : ['Enable your microphone and speak for at least a few seconds per question'],
+      aiInsights?.summary
+        ? aiInsights.summary
+        : answeredQuestions === 0
+          ? 'No answers were recorded for this session. Complete and submit answers to receive a meaningful score.'
+          : !hasScoredAnswers
+            ? 'Your answers were recorded but did not contain enough speech for a full evaluation. Try again with clearer audio.'
+            : `You completed ${answeredQuestions} answer(s) in this ${session.session_type || 'interview'} session.`,
+    strengths:
+      aiInsights?.strengths?.length
+        ? aiInsights.strengths
+        : hasScoredAnswers
+          ? allStrengths.length > 0
+            ? allStrengths
+            : ['Keep practicing with full spoken responses']
+          : ['Submit spoken answers so the AI can score your performance'],
+    improvements:
+      aiInsights?.improvements?.length
+        ? aiInsights.improvements
+        : hasScoredAnswers
+          ? allImprovements.length > 0
+            ? allImprovements
+            : ['Review feedback for each question']
+          : ['Enable your microphone and speak for at least a few seconds per question'],
   };
 
   res.status(HTTP_STATUS.OK).json({

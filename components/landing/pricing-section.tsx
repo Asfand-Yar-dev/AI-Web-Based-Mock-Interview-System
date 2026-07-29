@@ -104,6 +104,10 @@ export function PricingSection() {
                 Get started
               </Button>
             </Link>
+            {/* Invisible spacer to align this button with Premium's (which has a footnote below it) */}
+            <p aria-hidden className="mt-3 text-center text-xs text-muted-foreground invisible">
+              Sign up free first — upgrade anytime from your dashboard.
+            </p>
           </motion.div>
 
           {/* Premium — highlighted plan */}

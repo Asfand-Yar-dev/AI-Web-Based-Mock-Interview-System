@@ -166,6 +166,10 @@ function UpgradePageInner() {
             >
               {isFree ? "Current Plan" : "Downgraded"}
             </Button>
+            {/* Invisible spacer — matches the footnote paragraph in the Premium card so both buttons sit at the same height */}
+            <p className="text-center text-xs mt-3 opacity-0 pointer-events-none select-none" aria-hidden="true">
+              Demo: upgrade is instant, no payment required.
+            </p>
           </motion.div>
 
           {/* Premium */}
@@ -185,7 +189,7 @@ function UpgradePageInner() {
             <div className="flex items-center justify-between mb-6 mt-2">
               <div>
                 <h2 className="text-xl font-bold text-foreground">Premium</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">For serious candidates</p>
+                <p className="text-sm text-muted-foreground mt-0.5">For serious applicants</p>
               </div>
               <div className="text-right">
                 <span className="text-3xl font-bold text-foreground">Rs 2,500</span>
@@ -264,7 +268,7 @@ function UpgradePageInner() {
             </thead>
             <tbody className="divide-y divide-border/20">
               {[
-                ["AI interview sessions",       "3 / month",   "Unlimited"],
+                ["AI interview sessions",       "10 / month",  "Unlimited"],
                 ["Session difficulty",          "Easy, Medium","Easy, Medium, Hard"],
                 ["Score breakdown",             "Basic",       "Full 360°"],
                 ["Live human interviews",       "❌",           "✅"],

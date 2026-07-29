@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,9 +18,9 @@ import {
   Code,
   FileText,
   Loader2,
-  ArrowLeft,
   Gauge,
   Volume2,
+  Lock,
 } from "lucide-react"
 import {
   Select,
@@ -30,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useRequireAuth } from "@/contexts/auth-context"
+import { useRequireAuth, useAuth } from "@/contexts/auth-context"
 import { interviewApi } from "@/lib/api"
 import { toast } from "sonner"
 
@@ -85,6 +84,7 @@ const difficultyOptions = [
     id: "hard" as const,
     name: "Hard",
     description: "Senior-level depth and follow-ups",
+    premium: true,
   },
 ]
 
@@ -95,7 +95,10 @@ const selectTriggerClass =
 export default function InterviewSetupPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth()
+  const { isPro } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  // Shown when a free user clicks the Premium-only "Hard" difficulty.
+  const [showHardPrompt, setShowHardPrompt] = useState(false)
   const [formData, setFormData] = useState({
     jobTitle: "",
     skills: [] as string[],
@@ -222,16 +225,6 @@ export default function InterviewSetupPage() {
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto">
-        {/* Back Link */}
-        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </motion.div>
 
         {/* Header */}
         <motion.div
@@ -299,21 +292,41 @@ export default function InterviewSetupPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {difficultyOptions.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, difficulty: d.id }))}
-                  className={`p-4 rounded-xl border text-left transition-all ${
-                    formData.difficulty === d.id
-                      ? "border-accent bg-accent/10 ring-1 ring-accent/30"
-                      : "border-border/50 hover:border-accent/50"
-                  }`}
-                >
-                  <p className="font-medium text-foreground">{d.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
-                </button>
-              ))}
+              {difficultyOptions.map((d) => {
+                const locked = "premium" in d && d.premium && !isPro
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      if (locked) {
+                        setShowHardPrompt(true)
+                        return
+                      }
+                      setFormData((prev) => ({ ...prev, difficulty: d.id }))
+                    }}
+                    aria-disabled={locked}
+                    className={`relative p-4 rounded-xl border text-left transition-all ${
+                      locked
+                        ? "border-border/50 opacity-70 hover:border-accent/40"
+                        : formData.difficulty === d.id
+                        ? "border-accent bg-accent/10 ring-1 ring-accent/30"
+                        : "border-border/50 hover:border-accent/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground">{d.name}</p>
+                      {locked && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 border border-accent/30 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                          <Lock className="h-2.5 w-2.5" />
+                          Premium
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -549,6 +562,52 @@ export default function InterviewSetupPage() {
           </motion.div>
         </motion.form>
       </div>
+
+      {/* Premium prompt — shown when a free user taps the locked "Hard" difficulty */}
+      <AnimatePresence>
+        {showHardPrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => setShowHardPrompt(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border border-border/60 bg-card p-6 text-center shadow-xl"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15">
+                <Lock className="h-6 w-6 text-accent" />
+              </div>
+              <h3 className="text-lg font-semibold text-card-foreground">Hard mode is a Premium feature</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Senior-level questions and tougher follow-ups are available on Premium. Upgrade to unlock Hard
+                difficulty and more.
+              </p>
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button
+                  onClick={() => router.push("/upgrade?next=/interview/setup")}
+                  className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Upgrade to Premium
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHardPrompt(false)}
+                  className="bg-transparent"
+                >
+                  Maybe later
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   )
 }

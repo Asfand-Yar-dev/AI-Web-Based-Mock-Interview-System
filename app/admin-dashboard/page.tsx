@@ -41,21 +41,21 @@ type AdminDashboardData = AdminDashboardResponse["data"]
 type AdminTab = "overview" | "users" | "analytics" | "feedback" | "security" | "settings"
 
 const ADMIN_TABS: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: "overview",   label: "Overview",   icon: LayoutDashboard },
-  { id: "users",      label: "Users",      icon: Users },
-  { id: "analytics",  label: "Analytics",  icon: BarChart3 },
-  { id: "feedback",   label: "Feedback",   icon: MessageSquare },
-  { id: "security",   label: "Security",   icon: ShieldCheck },
-  { id: "settings",   label: "Settings",   icon: Settings },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "users", label: "Users", icon: Users },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "feedback", label: "Feedback", icon: MessageSquare },
+  { id: "security", label: "Security", icon: ShieldCheck },
+  { id: "settings", label: "Settings", icon: Settings },
 ]
 
 const TAB_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
-  overview:  { title: "Overview",  subtitle: "Platform-wide usage and activity at a glance" },
-  users:     { title: "Users",     subtitle: "Monitor registered accounts and their activity" },
+  overview: { title: "Overview", subtitle: "Platform-wide usage and activity at a glance" },
+  users: { title: "Users", subtitle: "Monitor registered accounts and their activity" },
   analytics: { title: "Analytics", subtitle: "Distribution breakdowns across users and sessions" },
-  feedback:  { title: "Feedback",  subtitle: "Track feedback quality and flagged sessions" },
-  security:  { title: "Security",  subtitle: "Role-based access overview and policy status" },
-  settings:  { title: "Settings",  subtitle: "Platform configuration and feature toggles" },
+  feedback: { title: "Feedback", subtitle: "Track feedback quality and flagged sessions" },
+  security: { title: "Security", subtitle: "Role-based access overview and policy status" },
+  settings: { title: "Settings", subtitle: "Platform configuration and feature toggles" },
 }
 
 const defaultAdminData: AdminDashboardData = {
@@ -86,12 +86,29 @@ const defaultAdminData: AdminDashboardData = {
   },
   adminSettings: {
     environment: 'development',
+    port: '5000',
     aiEnabled: false,
     whisperModel: 'base',
     jwtExpiry: '24h',
+    jwtRefreshExpiry: '7d',
     rateLimit: 100,
+    rateLimitWindowMinutes: 15,
     authRateLimit: 10,
     corsOrigin: '',
+    bcryptRounds: 12,
+    logLevel: 'info',
+    maxFileSizeMb: 10,
+    bodySizeLimitMb: 500,
+    aiServiceUrl: 'http://localhost:8000',
+    aiTimeoutSeconds: 30,
+    aiMaxRetries: 2,
+    useNlpAi: false,
+    useVocalAi: false,
+    useFacialAi: false,
+    useSttAi: false,
+    groqConfigured: false,
+    googleConfigured: false,
+    mongoHost: '—',
     notifyOnCriticalDegradation: false,
   },
   feedbackMonitoring: {
@@ -314,12 +331,12 @@ export default function AdminPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === "overview"   && <OverviewTab   data={data} />}
-              {activeTab === "users"      && <UsersTab      data={data} />}
-              {activeTab === "analytics"  && <AnalyticsTab  data={data} />}
-              {activeTab === "feedback"   && <FeedbackTab   data={data} />}
-              {activeTab === "security"   && <SecurityTab   data={data} />}
-              {activeTab === "settings"   && <SettingsTab   data={data} />}
+              {activeTab === "overview" && <OverviewTab data={data} />}
+              {activeTab === "users" && <UsersTab data={data} />}
+              {activeTab === "analytics" && <AnalyticsTab data={data} />}
+              {activeTab === "feedback" && <FeedbackTab data={data} />}
+              {activeTab === "security" && <SecurityTab data={data} />}
+              {activeTab === "settings" && <SettingsTab data={data} />}
             </motion.div>
           </main>
         </div>
@@ -407,36 +424,36 @@ function UsersTab({ data }: { data: AdminDashboardData }) {
 // Brand-aligned chart palette (concrete hex — recharts/SVG can't read CSS vars).
 // Mirrors the emerald token set in globals.css for a cohesive look.
 const V = {
-  accent:  "#2fe39e",
+  accent: "#2fe39e",
   success: "#34d399",
   warning: "#f5c451",
-  danger:  "#ff6b6b",
-  info:    "#56b6ff",
-  lime:    "#a3e635",
-  teal:    "#2dd4bf",
+  danger: "#ff6b6b",
+  info: "#56b6ff",
+  lime: "#a3e635",
+  teal: "#2dd4bf",
 }
 // Recharts neutral tokens (grid / ticks / labels)
-const GRID  = "rgba(120,210,170,0.14)"
-const TICK  = "#7c9488"
+const GRID = "rgba(120,210,170,0.14)"
+const TICK = "#7c9488"
 const TRACK = "rgba(120,210,170,0.10)"
 
 const ROLE_COLORS: Record<string, string> = {
-  User:    V.accent,
-  Admin:   V.info,
+  User: V.accent,
+  Admin: V.info,
   Unknown: V.teal,
 }
 
 const STATUS_COLORS: Record<string, string> = {
   Completed: V.success,
-  Ongoing:   V.info,
-  Pending:   V.warning,
+  Ongoing: V.info,
+  Pending: V.warning,
   Cancelled: V.danger,
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy:   V.success,
+  Easy: V.success,
   Medium: V.warning,
-  Hard:   V.danger,
+  Hard: V.danger,
 }
 
 const TYPE_COLORS = [V.accent, V.info, V.success, V.lime, V.teal, V.warning]
@@ -627,8 +644,8 @@ function AnalyticsTab({ data }: { data: AdminDashboardData }) {
   const { stats, feedbackMonitoring: fb, analytics } = data
 
   // Exclude 'Ongoing' — those haven't finished yet, not an outcome
-  const statusData     = toChartData(analytics.statusDistribution).filter(d => d.name !== 'Ongoing')
-  const typeData       = toChartData(analytics.sessionTypeDistribution)
+  const statusData = toChartData(analytics.statusDistribution).filter(d => d.name !== 'Ongoing')
+  const typeData = toChartData(analytics.sessionTypeDistribution)
   const difficultyData = toChartData(analytics.difficultyDistribution)
 
   // Platform KPI cards — use CSS chart variables so they follow the theme
@@ -782,8 +799,8 @@ function SecurityTab({ data }: { data: AdminDashboardData }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        <MetricCard label="Blocked Users"     value={sec.blockedUsers} />
-        <MetricCard label="Ongoing Sessions"  value={sec.activeSessions} />
+        <MetricCard label="Blocked Users" value={sec.blockedUsers} />
+        <MetricCard label="Ongoing Sessions" value={sec.activeSessions} />
       </div>
 
       <section className="rounded-[17px] border border-border bg-card p-6">
@@ -814,92 +831,122 @@ function SecurityTab({ data }: { data: AdminDashboardData }) {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-function SettingsTab({ data }: { data: AdminDashboardData }) {
-  const s = data.adminSettings
-
-  const configRows: Array<{ label: string; description: string; value: string; pill?: boolean; on?: boolean }> = [
-    {
-      label:       "Environment",
-      description: "Runtime mode of the backend server",
-      value:       s.environment,
-      pill:        true,
-      on:          s.environment === "production",
-    },
-    {
-      label:       "AI Analysis Pipeline",
-      description: "Whether the AI gateway is active or using heuristic fallback",
-      value:       s.aiEnabled ? "Enabled" : "Disabled (heuristic mode)",
-      pill:        true,
-      on:          s.aiEnabled,
-    },
-    {
-      label:       "Whisper Model",
-      description: "Speech-to-text model size used by the AI gateway",
-      value:       s.whisperModel,
-    },
-    {
-      label:       "JWT Expiry",
-      description: "How long user session tokens are valid",
-      value:       s.jwtExpiry,
-    },
-    {
-      label:       "API Rate Limit",
-      description: "Max requests per 15 minutes per IP",
-      value:       `${s.rateLimit.toLocaleString()} req / 15 min`,
-    },
-    {
-      label:       "Auth Rate Limit",
-      description: "Max login / register attempts per 15 minutes per IP",
-      value:       `${s.authRateLimit} req / 15 min`,
-    },
-    {
-      label:       "CORS Origin",
-      description: "Allowed frontend origin for cross-origin requests",
-      value:       s.corsOrigin || "—",
-    },
-    {
-      label:       "Critical Degradation Alerts",
-      description: "Notify admins when a service degrades critically",
-      value:       s.notifyOnCriticalDegradation ? "Enabled" : "Disabled",
-      pill:        true,
-      on:          s.notifyOnCriticalDegradation,
-    },
-  ]
-
+function SettingRow({
+  label,
+  description,
+  value,
+  pill,
+  on,
+}: {
+  label: string
+  description: string
+  value: string
+  pill?: boolean
+  on?: boolean
+}) {
   return (
-    <div className="space-y-6">
-      <section className="rounded-[17px] border border-border bg-card p-6">
-        <h2 className="mb-1 text-base font-semibold text-card-foreground">Platform Configuration</h2>
-        <p className="mb-5 text-xs text-muted-foreground">
-          Live snapshot from the backend environment — edit <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">.env</code> to change values.
-        </p>
-
-        <div className="space-y-2">
-          {configRows.map((row) => (
-            <div
-              key={row.label}
-              className="flex items-center justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 px-4 py-3.5"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-card-foreground">{row.label}</p>
-                <p className="text-xs text-muted-foreground">{row.description}</p>
-              </div>
-              {row.pill ? (
-                <StatusPill status={row.on ? "active" : "disabled"} />
-              ) : (
-                <span className="shrink-0 rounded-lg border border-border/40 bg-background px-2.5 py-1 font-mono text-xs text-card-foreground">
-                  {row.value}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 px-4 py-3.5">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-card-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      {pill ? (
+        <StatusPill status={on ? "active" : "disabled"} />
+      ) : (
+        <span className="shrink-0 rounded-lg border border-border/40 bg-background px-2.5 py-1 font-mono text-xs text-card-foreground">
+          {value}
+        </span>
+      )}
     </div>
   )
 }
 
-// ── Shared primitives ─────────────────────────────────────────────────────────
+function SettingsSection({ title, rows }: { title: string; rows: Parameters<typeof SettingRow>[0][] }) {
+  return (
+    <section className="rounded-[17px] border border-border bg-card p-6">
+      <h2 className="mb-4 text-base font-semibold text-card-foreground">{title}</h2>
+      <div className="space-y-2">
+        {rows.map((r) => <SettingRow key={r.label} {...r} />)}
+      </div>
+    </section>
+  )
+}
+
+function SettingsTab({ data }: { data: AdminDashboardData }) {
+  const s = data.adminSettings
+
+  return (
+    <div className="space-y-6">
+      {/* Live snapshot note */}
+      <p className="text-xs text-muted-foreground">
+        Live snapshot from the backend environment — edit{" "}
+        <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">.env</code> to change values.
+        Credentials and secrets are masked.
+      </p>
+
+      {/* ── Server ── */}
+      <SettingsSection
+        title="Server"
+        rows={[
+          { label: "Environment", description: "Runtime mode of the backend server", value: s.environment, pill: true, on: s.environment === "production" },
+          { label: "Port", description: "Port the backend API listens on", value: s.port },
+          { label: "Log Level", description: "Verbosity of the server logger", value: s.logLevel },
+          { label: "MongoDB Host", description: "Database connection host (credentials masked)", value: s.mongoHost },
+          { label: "Body Size Limit", description: "Max request body the server will accept", value: `${s.bodySizeLimitMb} MB` },
+          { label: "Max File Upload", description: "Max single file upload size", value: `${s.maxFileSizeMb} MB` },
+        ]}
+      />
+
+      {/* ── Auth & Security ── */}
+      <SettingsSection
+        title="Auth & Security"
+        rows={[
+          { label: "JWT Token Expiry", description: "How long access tokens are valid", value: s.jwtExpiry },
+          { label: "JWT Refresh Expiry", description: "How long refresh tokens are valid", value: s.jwtRefreshExpiry },
+          { label: "Bcrypt Salt Rounds", description: "Password hashing cost factor (higher = slower)", value: `${s.bcryptRounds} rounds` },
+          { label: "Google OAuth", description: "Whether a Google Client ID is configured", value: s.googleConfigured ? "Configured" : "Not configured", pill: true, on: s.googleConfigured },
+          { label: "CORS Origin", description: "Allowed frontend origin(s) for cross-origin requests", value: s.corsOrigin || "—" },
+        ]}
+      />
+
+      {/* ── Rate Limiting ── */}
+      <SettingsSection
+        title="Rate Limiting"
+        rows={[
+          { label: "API Rate Limit", description: `Max requests per ${s.rateLimitWindowMinutes} min per IP`, value: `${s.rateLimit.toLocaleString()} req / ${s.rateLimitWindowMinutes} min` },
+          { label: "Auth Rate Limit", description: `Max login/register attempts per ${s.rateLimitWindowMinutes} min`, value: `${s.authRateLimit} req / ${s.rateLimitWindowMinutes} min` },
+          { label: "Rate Limit Window", description: "Rolling window for rate limit counters", value: `${s.rateLimitWindowMinutes} minutes` },
+        ]}
+      />
+
+      {/* ── AI Pipeline ── */}
+      <SettingsSection
+        title="AI Pipeline"
+        rows={[
+          { label: "AI Analysis Pipeline", description: "Master toggle — gateway vs heuristic fallback", value: s.aiEnabled ? "Enabled" : "Disabled", pill: true, on: s.aiEnabled },
+          { label: "AI Gateway URL", description: "Base URL of the Python AI gateway", value: s.aiServiceUrl },
+          { label: "Gateway Timeout", description: "Max wait time for AI gateway responses", value: `${s.aiTimeoutSeconds}s` },
+          { label: "Gateway Max Retries", description: "Retry attempts before falling back to heuristics", value: `${s.aiMaxRetries}` },
+          { label: "Whisper Model", description: "Speech-to-text model size (STT)", value: s.whisperModel },
+          { label: "NLP Analysis", description: "Natural language processing of interview answers", value: s.useNlpAi ? "Enabled" : "Disabled", pill: true, on: s.useNlpAi },
+          { label: "Vocal Analysis", description: "Tone, pace and confidence from audio", value: s.useVocalAi ? "Enabled" : "Disabled", pill: true, on: s.useVocalAi },
+          { label: "Facial Analysis", description: "Emotion and engagement detection from video", value: s.useFacialAi ? "Enabled" : "Disabled", pill: true, on: s.useFacialAi },
+          { label: "Speech-to-Text", description: "Whisper-based transcription of spoken answers", value: s.useSttAi ? "Enabled" : "Disabled", pill: true, on: s.useSttAi },
+          { label: "Groq API (LLM)", description: "Cloud LLM for question and feedback generation", value: s.groqConfigured ? "Configured" : "Not configured", pill: true, on: s.groqConfigured },
+        ]}
+      />
+
+      {/* ── Alerts ── */}
+      <SettingsSection
+        title="Alerts"
+        rows={[
+          { label: "Critical Degradation Alerts", description: "Notify admins when a service degrades critically", value: s.notifyOnCriticalDegradation ? "Enabled" : "Disabled", pill: true, on: s.notifyOnCriticalDegradation },
+        ]}
+      />
+    </div>
+  )
+}
+
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleSignInButton } from "@/components/auth/google-signin-button";
-import { Sparkles, Loader2, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { GraduationCap, Loader2, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { isValidEmail, isAllowedEmailDomain, ALLOWED_EMAIL_DOMAINS, cn } from "@/lib/utils";
@@ -75,8 +75,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         });
       } else {
         await signup(formData.name.trim(), formData.email, formData.password, role);
-        toast.success("Account created!", {
-          description: "Please sign in to continue.",
+        toast.success("Check your email", {
+          description: "We sent a 6-digit verification code to confirm your address.",
         });
       }
       // Redirect is handled by auth context
@@ -191,9 +191,9 @@ export function AuthForm({ mode }: AuthFormProps) {
                     )}
                   >
                     <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center mb-2">
-                      <Sparkles className="h-4 w-4 text-accent" />
+                      <GraduationCap className="h-4 w-4 text-accent" />
                     </div>
-                    <span className="text-xs font-semibold text-foreground">Applicant / User</span>
+                    <span className="text-xs font-semibold text-foreground">Applicant</span>
                     <span className="text-[10px] text-muted-foreground mt-1 leading-tight">Practice & prepare for interviews</span>
                   </div>
 
@@ -234,7 +234,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                     id="name"
                     name="name"
                     type="text"
-                    placeholder="John Doe"
                     value={formData.name}
                     onChange={handleChange}
                     required
@@ -258,7 +257,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
                   required
@@ -281,7 +279,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
                   required

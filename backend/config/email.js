@@ -84,6 +84,31 @@ async function sendVerificationEmail(email, name, token) {
 }
 
 /**
+ * Send an email-verification OTP email (sign-up flow).
+ * @param {string} email
+ * @param {string} name
+ * @param {string} otp - 6-digit one-time code
+ */
+async function sendEmailVerificationOtp(email, name, otp) {
+  await sendEmail({
+    to: email,
+    subject: 'Your Intervexa verification code',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px">
+        <h2 style="color:#4f46e5">Verify your email</h2>
+        <p style="color:#374151">Welcome to Intervexa, ${name || 'there'}! Use the code below to verify your email address and activate your account.</p>
+        <div style="margin:24px 0;padding:18px 0;text-align:center;background:#f3f4f6;border-radius:10px">
+          <span style="font-size:34px;font-weight:700;letter-spacing:10px;color:#111827">${otp}</span>
+        </div>
+        <p style="color:#6b7280;font-size:13px">
+          This code expires in 10 minutes. If you didn't create an Intervexa account, you can safely ignore this email.
+        </p>
+      </div>
+    `,
+  });
+}
+
+/**
  * Send a password-reset OTP email.
  * @param {string} email
  * @param {string} name
@@ -267,6 +292,7 @@ async function sendBookingRejected({ to, role, interviewerName, note, browseUrl 
 module.exports = {
   sendEmail,
   sendVerificationEmail,
+  sendEmailVerificationOtp,
   sendPasswordResetOtp,
   sendBookingConfirmation,
   sendBookingAccepted,

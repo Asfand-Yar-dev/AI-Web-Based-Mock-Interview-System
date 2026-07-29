@@ -94,7 +94,7 @@ export function HeroSection() {
               ))}
             </div>
             <div className="mt-0.5 text-[12.5px] text-faint">
-              <span className="font-semibold text-foreground">4.8/5</span> · rated by 2,000+ candidates
+              <span className="font-semibold text-foreground">4.8/5</span> · rated by 2,000+ applicants
             </div>
           </div>
         </motion.div>

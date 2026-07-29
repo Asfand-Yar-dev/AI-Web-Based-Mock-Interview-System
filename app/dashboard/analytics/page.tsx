@@ -306,16 +306,6 @@ export default function AnalyticsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        {/* Back Link */}
-        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </motion.div>
 
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-display text-3xl font-bold text-foreground">My Analytics</h1>

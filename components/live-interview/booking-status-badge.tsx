@@ -56,6 +56,19 @@ const STATUS_META: Record<string, { label: string; className: string; icon: Reac
   refunded:       { label: "Refunded",     className: "bg-destructive/15 text-destructive border-destructive/30", icon: XCircle },
 }
 
+/**
+ * Interviewer-facing status mapping. Once a session has actually been
+ * conducted (meeting_completed → evaluating_ai → results_ready), the
+ * interviewer just sees it as "Completed" — human feedback is optional and
+ * never surfaces as a separate "pending" state on their dashboard.
+ * Applicant-facing views keep the detailed labels above.
+ */
+const INTERVIEWER_DONE_STATUSES = ["meeting_completed", "evaluating_ai", "results_ready", "completed"]
+
+export function interviewerDisplayStatus(status: string): string {
+  return INTERVIEWER_DONE_STATUSES.includes(status) ? "completed" : status
+}
+
 interface BookingStatusBadgeProps {
   status: string
   className?: string

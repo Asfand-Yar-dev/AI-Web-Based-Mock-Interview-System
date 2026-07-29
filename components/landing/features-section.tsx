@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { ScanFace, LayoutGrid, FileText, TrendingUp, ShieldCheck, AudioLines } from "lucide-react"
+import { ScanFace, LayoutGrid, FileText, TrendingUp, ShieldCheck, Users } from "lucide-react"
 
 const EQ = [40, 70, 100, 55, 85, 35, 75, 50, 90, 45, 65, 80]
 
@@ -78,9 +78,9 @@ export function FeaturesSection() {
         <FeatureTile
           className="sm:col-span-2"
           row
-          icon={AudioLines}
-          title="Real-time voice coaching"
-          body="Live nudges on pace and clarity while you answer — not just after."
+          icon={Users}
+          title="Live human interviews"
+          body="Book real interviewers for premium mock sessions — practice with people, not just AI."
         />
       </div>
     </section>

@@ -121,7 +121,7 @@ export default function NewInterviewPage() {
 
                 <ul className="relative mt-6 space-y-2.5 text-sm">
                   {[
-                    { Icon: Users, text: "Real interviewer, live over WebRTC" },
+                    { Icon: Users, text: "Real interviewer, live video call" },
                     { Icon: ShieldCheck, text: "AI + human combined score report" },
                     { Icon: CalendarDays, text: "Pick the domain, role, and time slot" },
                   ].map(({ Icon, text }) => (
@@ -171,7 +171,7 @@ export default function NewInterviewPage() {
 
                 <ul className="relative mt-6 space-y-2.5 text-sm">
                   {[
-                    { Icon: Users, text: "Real interviewer, live over WebRTC" },
+                    { Icon: Users, text: "Real interviewer, live video call" },
                     { Icon: ShieldCheck, text: "AI + human combined score report" },
                     { Icon: CalendarDays, text: "Pick the domain, role, and time slot" },
                   ].map(({ Icon, text }) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { motion } from "framer-motion";
 import { User, Bell, Shield, Palette, Loader2, Check, AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound } from "lucide-react";
@@ -22,9 +22,9 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const [notifications, setNotifications] = useState({
-    email: true,
-    practice: false,
-    tips: true,
+    email:    user?.settings?.emailNotifications    ?? true,
+    practice: user?.settings?.interviewReminders    ?? false,
+    tips:     user?.settings?.resultNotifications   ?? true,
   });
 
   const [profile, setProfile] = useState({
@@ -41,12 +41,19 @@ export default function SettingsPage() {
   const [showPw, setShowPw] = useState({ current: false, next: false });
   const hasPassword = user?.hasPassword ?? (user?.authProvider !== "google");
 
-  // Update profile when user data loads
-  useState(() => {
+  // Sync profile name and notification preferences once the user object is loaded
+  // (useState initial values run before auth resolves, so we need useEffect here)
+  useEffect(() => {
     if (user) {
       setProfile({ name: user.name });
+      setNotifications({
+        email:    user.settings?.emailNotifications    ?? true,
+        practice: user.settings?.interviewReminders    ?? false,
+        tips:     user.settings?.resultNotifications   ?? true,
+      });
     }
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id]);
 
   const handleProfileChange = (key: "name", value: string) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
@@ -120,14 +127,29 @@ export default function SettingsPage() {
     }
   };
 
-  const handleNotificationChange = (key: keyof typeof notifications) => {
+  const handleNotificationChange = async (key: keyof typeof notifications) => {
     const newNotifications = { ...notifications, [key]: !notifications[key] };
     setNotifications(newNotifications);
-    // Save to localStorage for now (backend notification settings can be added later)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("aiInterviewNotificationSettings", JSON.stringify(newNotifications));
+
+    // Map frontend keys → backend field names
+    const backendMap: Record<keyof typeof notifications, string> = {
+      email:    "emailNotifications",
+      practice: "interviewReminders",
+      tips:     "resultNotifications",
+    };
+
+    try {
+      await authApi.updateSettings({
+        [backendMap[key]]: newNotifications[key],
+      });
+      toast.success("Notification preferences saved");
+    } catch (error) {
+      // Revert optimistic update on failure
+      setNotifications(notifications);
+      toast.error("Failed to save preferences", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
     }
-    toast.success("Notification preferences saved");
   };
 
   // Show loading while checking auth
@@ -151,16 +173,7 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="max-w-3xl space-y-8">
-        {/* Back Link */}
-        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </motion.div>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}

@@ -12,7 +12,7 @@ import {
   ArrowRight,
   Loader2,
   Clock,
-  Sparkles,
+  Bot,
   X,
   Captions,
 } from "lucide-react";
@@ -695,7 +695,7 @@ export default function InterviewSessionPage() {
               <div className="flex h-24 items-center justify-center bg-[radial-gradient(circle_at_50%_40%,var(--accent-soft),transparent_70%)]">
                 <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-accent shadow-[0_0_22px_var(--glow)]">
                   <span className="absolute inset-0 rounded-full border border-accent/40 animate-pulse-ring" />
-                  <Sparkles className="h-5 w-5 text-accent-foreground" />
+                  <Bot className="h-5 w-5 text-accent-foreground" />
                 </div>
               </div>
               <div className="flex items-center justify-between px-3 py-2">

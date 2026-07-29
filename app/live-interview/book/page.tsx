@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { liveInterviewApi } from "@/lib/liveInterviewApi";
 import { Button } from "@/components/ui/button";
-import { PremiumLayout, PremiumBadge } from "@/components/live-interview/premium-layout";
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+import { PremiumBadge } from "@/components/live-interview/premium-layout";
 import { useRequireAuth } from "@/contexts/auth-context";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -61,6 +62,10 @@ function defaultScheduledTime() {
 
 const inputClass =
   "w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2.5 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all";
+
+// Same as inputClass, but with theme-aligned native dropdown options so the
+// popup matches the app theme (light/dark) instead of the browser default.
+const selectClass = `${inputClass} cursor-pointer [&>option]:bg-card [&>option]:text-card-foreground`;
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
@@ -139,8 +144,9 @@ export default function BookLiveInterviewPage() {
   const [step, setStep] = useState(1);
 
   // Configure Booking state
-  const [role, setRole]                   = useState("Software Engineer");
-  const [skills, setSkills]               = useState("React, Node.js");
+  // Start empty so the placeholder acts as a sample — nothing to erase first.
+  const [role, setRole]                   = useState("");
+  const [skills, setSkills]               = useState("");
   const [domain, setDomain]               = useState("frontend");
   const [customDomain, setCustomDomain]   = useState("");
   const [scheduledTime, setScheduledTime] = useState(defaultScheduledTime);
@@ -235,7 +241,7 @@ export default function BookLiveInterviewPage() {
   if (authLoading) return null;
 
   return (
-    <PremiumLayout backHref="/dashboard" backLabel="Dashboard" showMyBookings>
+    <DashboardLayout>
       {/* Header */}
       <div className="mb-8 space-y-2">
         <PremiumBadge />
@@ -287,7 +293,7 @@ export default function BookLiveInterviewPage() {
                   Domain <span className="text-destructive">*</span>
                 </label>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={domain}
                   onChange={(e) => { setDomain(e.target.value); setError(null); }}
                 >
@@ -523,6 +529,6 @@ export default function BookLiveInterviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </PremiumLayout>
+    </DashboardLayout>
   );
 }

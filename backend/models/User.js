@@ -158,6 +158,17 @@ const UserSchema = new mongoose.Schema({
     select: false,
   },
 
+  // Email verification (OTP) flow — a 6-digit code is emailed at sign-up and the
+  // account stays unverified (and cannot log in with email/password) until it's entered.
+  emailVerificationToken: {
+    type: String,
+    select: false,
+  },
+  emailVerificationExpires: {
+    type: Date,
+    select: false,
+  },
+
   // ── Plan / Subscription ──────────────────────────────────────────────────────
   /**
    * 'free' — limited to PLAN_LIMITS.FREE_MONTHLY_SESSIONS sessions/month,

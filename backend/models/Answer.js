@@ -63,6 +63,12 @@ const AnswerSchema = new mongoose.Schema({
     type: String,
   },
 
+  // Ideal/correct answer — generated on demand (and cached) when the applicant's
+  // answer scored as wrong, so the results page can show what a good answer was.
+  modelAnswer: {
+    type: String,
+  },
+
   // Processing status for async AI pipeline
   processingStatus: {
     type: String,

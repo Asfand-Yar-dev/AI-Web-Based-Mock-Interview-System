@@ -23,13 +23,14 @@ import {
 import { Button } from "@/components/ui/button"
 import type { LiveBooking } from "@/lib/liveInterviewApi"
 import { liveInterviewApi, BOOKING_STATUS } from "@/lib/liveInterviewApi"
-import { BookingStatusBadge } from "@/components/live-interview/booking-status-badge"
+import { BookingStatusBadge, interviewerDisplayStatus } from "@/components/live-interview/booking-status-badge"
 import { buildGoogleCalendarUrl } from "@/lib/googleCalendar"
 
 // ── Score badge ───────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? "text-success" : score >= 50 ? "text-warning" : "text-destructive"
+  // ≤50 red, 51–75 yellow, 76–100 green
+  const color = score >= 76 ? "text-success" : score >= 51 ? "text-warning" : "text-destructive"
   return (
     <span className={`text-lg font-bold tabular-nums ${color}`}>
       {score}<span className="text-xs font-normal text-muted-foreground">/100</span>
@@ -314,7 +315,7 @@ function FeedbackForm({
       {/* Per-dimension scores */}
       <div className="rounded-xl border border-border/40 bg-secondary/20 p-4 space-y-3">
         <p className="text-xs font-semibold text-muted-foreground">
-          Rate the candidate on each dimension
+          Rate the applicant on each dimension
         </p>
         <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
           {HUMAN_DIMENSIONS.map((d) => (
@@ -350,7 +351,7 @@ function FeedbackForm({
           placeholder={
             "Format recommendation:\n" +
             "Q: What is the difference between REST and GraphQL?\n" +
-            "A: Candidate gave a decent comparison but missed subscriptions...\n\n" +
+            "A: Applicant gave a decent comparison but missed subscriptions...\n\n" +
             "Q: How would you design a rate limiter?\n" +
             "A: Used token bucket algorithm, explained well..."
           }
@@ -359,7 +360,7 @@ function FeedbackForm({
           onChange={(e) => { setTranscript(e.target.value); setError(null) }}
         />
         <p className="mt-1 text-[11px] text-muted-foreground">
-          If provided, our AI will evaluate the candidate's performance across dimensions and generate an automated report.
+          If provided, our AI will evaluate the applicant's performance across dimensions and generate an automated report.
         </p>
       </div>
       <div>
@@ -368,7 +369,7 @@ function FeedbackForm({
         </label>
         <textarea
           rows={4}
-          placeholder="Optional — note any mistakes the candidate made and tips to improve (e.g. rushed answers, weak on system design, work on STAR-format responses…)"
+          placeholder="Optional — note any mistakes the applicant made and tips to improve (e.g. rushed answers, weak on system design, work on STAR-format responses…)"
           className="w-full rounded-xl border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none transition-all"
           value={text}
           onChange={(e) => { setText(e.target.value); setError(null) }}
@@ -499,7 +500,7 @@ function BookingCard({
               {dateLabel.label}
             </span>
           )}
-          <BookingStatusBadge status={booking.status} showIcon />
+          <BookingStatusBadge status={interviewerDisplayStatus(booking.status)} showIcon />
         </div>
       </div>
 

@@ -30,7 +30,7 @@ import {
 import { liveInterviewApi, type LiveBooking, BOOKING_STATUS } from "@/lib/liveInterviewApi";
 import { useBookingRealtime } from "@/hooks/use-booking-realtime";
 import { Button } from "@/components/ui/button";
-import { PremiumLayout } from "@/components/live-interview/premium-layout";
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { BookingStatusBadge } from "@/components/live-interview/booking-status-badge";
 import { buildGoogleCalendarUrl } from "@/lib/googleCalendar";
 
@@ -403,7 +403,7 @@ export default function MyBookingsPage() {
   const rejected        = (bookings?.filter((b) => [BOOKING_STATUS.REJECTED, BOOKING_STATUS.FAILED_NO_SHOW, BOOKING_STATUS.REFUNDED].includes(b.status as any)) ?? []).sort(byDateDesc);
 
   return (
-    <PremiumLayout backHref="/dashboard" backLabel="Dashboard" showMyBookings={false}>
+    <DashboardLayout>
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -503,6 +503,6 @@ export default function MyBookingsPage() {
           )}
         </div>
       )}
-    </PremiumLayout>
+    </DashboardLayout>
   );
 }
