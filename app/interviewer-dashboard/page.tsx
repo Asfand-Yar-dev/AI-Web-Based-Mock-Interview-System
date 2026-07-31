@@ -240,7 +240,7 @@ function OverviewTab({
         transition={{ duration: 0.4 }}
       >
         <h2 className="text-2xl font-bold text-foreground">
-          {userName ? `Welcome back, ${userName} 👋` : "Welcome back 👋"}
+          {userName ? `Welcome back, ${userName}` : "Welcome back"}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Here's what's happening with your interview assignments today.

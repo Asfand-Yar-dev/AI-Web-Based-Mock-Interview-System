@@ -23,6 +23,8 @@ import {
   Mic,
   Video,
   Eye,
+  Accessibility,
+  Download,
   Activity,
   Gauge,
   Smile,
@@ -160,6 +162,8 @@ function DimCard({ label, score, icon: Icon, color, bg }: {
 
 // ── Interviewer dimension metadata (face, voice, confidence, …) ───────────────
 
+const ScaledVideo = (props: any) => <Video {...props} style={{ transform: "scale(1.3) translateY(-1px)" }} />;
+
 const HUMAN_DIMENSION_META: Array<{
   key: "confidence" | "communication" | "technical" | "problemSolving" | "bodyLanguage" | "voiceClarity"
   label: string
@@ -167,12 +171,11 @@ const HUMAN_DIMENSION_META: Array<{
   color: string
   bg: string
 }> = [
-  { key: "confidence",     label: "Confidence",        icon: Sparkles,       color: "text-success", bg: "bg-success/5" },
-  { key: "communication",  label: "Communication",     icon: MessageSquare,  color: "text-info",    bg: "bg-info/5" },
   { key: "technical",      label: "Technical",         icon: Brain,          color: "text-info",    bg: "bg-info/5" },
-  { key: "problemSolving", label: "Problem Solving",   icon: TrendingUp,     color: "text-warning", bg: "bg-warning/5" },
-  { key: "bodyLanguage",   label: "Body Language",     icon: User,           color: "text-accent",  bg: "bg-accent/5" },
-  { key: "voiceClarity",   label: "Voice & Clarity",   icon: Star,           color: "text-accent",  bg: "bg-accent/5" },
+  { key: "communication",  label: "Clarity",           icon: MessageSquare,  color: "text-info",    bg: "bg-info/5" },
+  { key: "voiceClarity",   label: "Voice",             icon: Mic,            color: "text-accent",  bg: "bg-accent/5" },
+  { key: "bodyLanguage",   label: "Body Language",     icon: ScaledVideo,    color: "text-warning", bg: "bg-warning/5" },
+  { key: "confidence",     label: "Confidence",        icon: Sparkles,       color: "text-success", bg: "bg-success/5" },
 ]
 
 // ── Strengths & Improvements Lists ───────────────────────────────────────────
@@ -339,12 +342,7 @@ function VoiceAnalysisCard({ voice }: { voice: any }) {
         </div>
       )}
 
-      {feedback.length > 0 && (
-        <div className="rounded-xl border border-border/40 bg-secondary/20 p-4">
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">What your voice conveyed</p>
-          <FeedbackBullets items={feedback} color="bg-accent" />
-        </div>
-      )}
+
     </motion.div>
   );
 }
@@ -533,19 +531,19 @@ export default function LiveResultsPage() {
   const aiReport     = booking.aiReport as any;
 
   // AI Dimension scores — NLP evaluation (from evaluate_live_interview)
-  const aiScore      = typeof aiReport?.overall_score === "number" ? aiReport.overall_score : null;
-  const commScore    = typeof aiReport?.communication_score === "number" ? aiReport.communication_score : null;
-  const techScore    = typeof aiReport?.technical_score === "number" ? aiReport.technical_score : null;
-  const confScore    = typeof aiReport?.confidence_score === "number" ? aiReport.confidence_score : null;
-  const probScore    = typeof aiReport?.problem_solving_score === "number" ? aiReport.problem_solving_score : null;
-  const questionsEvaluated = typeof aiReport?.questions_evaluated === "number" ? aiReport.questions_evaluated : null;
+  const aiScore      = typeof aiReport?.overall_score === "number" ? aiReport.overall_score : 0;
+  const commScore    = typeof aiReport?.communication_score === "number" ? aiReport.communication_score : 0;
+  const techScore    = typeof aiReport?.technical_score === "number" ? aiReport.technical_score : 0;
+  const confScore    = typeof aiReport?.confidence_score === "number" ? aiReport.confidence_score : 0;
+  const probScore    = typeof aiReport?.problem_solving_score === "number" ? aiReport.problem_solving_score : 0;
+  const questionsEvaluated = typeof aiReport?.questions_evaluated === "number" ? aiReport.questions_evaluated : 0;
   const strengths    = Array.isArray(aiReport?.strengths) ? aiReport.strengths : [];
   const improvements = Array.isArray(aiReport?.improvements) ? aiReport.improvements : [];
   const summary      = typeof aiReport?.summary === "string" ? aiReport.summary : "";
 
   // Voice & facial scores from the recording pipeline
-  const voiceScore   = typeof aiReport?.voice_score  === "number" ? aiReport.voice_score  : null;
-  const facialScore  = typeof aiReport?.facial_score === "number" ? aiReport.facial_score : null;
+  const voiceScore   = typeof aiReport?.voice_score  === "number" ? aiReport.voice_score  : 0;
+  const facialScore  = typeof aiReport?.facial_score === "number" ? aiReport.facial_score : 0;
 
   // Full voice / facial sub-reports (clarity, tone, emotions, eye contact, …)
   const voiceData    = aiReport?.voice  && typeof aiReport.voice  === "object" ? aiReport.voice  : null;
@@ -610,24 +608,42 @@ export default function LiveResultsPage() {
               </div>
             </div>
 
-            {/* NLP dimension cards (from full interview evaluation) */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Unified dimension cards */}
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+              {techScore !== null && (
+                <DimCard
+                  label="Technical"
+                  score={techScore}
+                  icon={Brain}
+                  color="text-info"
+                  bg="bg-info/5"
+                />
+              )}
               {commScore !== null && (
                 <DimCard
-                  label="Communication"
+                  label="Clarity"
                   score={commScore}
                   icon={MessageSquare}
                   color="text-info"
                   bg="bg-info/5"
                 />
               )}
-              {techScore !== null && (
+              {voiceScore !== null && (
                 <DimCard
-                  label="Technical Depth"
-                  score={techScore}
-                  icon={Brain}
-                  color="text-info"
-                  bg="bg-info/5"
+                  label="Voice"
+                  score={voiceScore}
+                  icon={Mic}
+                  color="text-accent"
+                  bg="bg-accent/5"
+                />
+              )}
+              {facialScore !== null && (
+                <DimCard
+                  label="Body Language"
+                  score={facialScore}
+                  icon={ScaledVideo}
+                  color="text-warning"
+                  bg="bg-warning/5"
                 />
               )}
               {confScore !== null && (
@@ -639,40 +655,7 @@ export default function LiveResultsPage() {
                   bg="bg-success/5"
                 />
               )}
-              {probScore !== null && (
-                <DimCard
-                  label="Problem Solving"
-                  score={probScore}
-                  icon={TrendingUp}
-                  color="text-warning"
-                  bg="bg-warning/5"
-                />
-              )}
             </div>
-
-            {/* Voice & Facial quick scores (detailed breakdowns render below) */}
-            {(voiceScore !== null || facialScore !== null) && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {voiceScore !== null && (
-                  <DimCard
-                    label="Voice Delivery"
-                    score={voiceScore}
-                    icon={Mic}
-                    color="text-accent"
-                    bg="bg-accent/5"
-                  />
-                )}
-                {facialScore !== null && (
-                  <DimCard
-                    label="Facial Expression"
-                    score={facialScore}
-                    icon={Video}
-                    color="text-warning"
-                    bg="bg-warning/5"
-                  />
-                )}
-              </div>
-            )}
 
             {/* Transcribed speech (collapsible) */}
             {sttUsed && transcript && (
@@ -702,8 +685,7 @@ export default function LiveResultsPage() {
           </motion.div>
         )}
 
-        {/* Detailed Voice & Speech analysis */}
-        {hasAiReport && voiceData && <VoiceAnalysisCard voice={voiceData} />}
+        {/* Detailed Voice & Speech analysis (Removed as requested) */}
 
         {/* Detailed Facial expression & body-language analysis */}
         {hasAiReport && facialData && <FacialAnalysisCard facial={facialData} />}
@@ -751,7 +733,7 @@ export default function LiveResultsPage() {
             </div>
             {/* Interviewer's per-dimension scores (face, voice, confidence, …) */}
             {booking.humanDimensionScores && Object.keys(booking.humanDimensionScores).length > 0 && (
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
                 {HUMAN_DIMENSION_META.map(({ key, label, icon, color, bg }) => {
                   const v = booking.humanDimensionScores?.[key]
                   if (typeof v !== "number") return null
@@ -813,9 +795,15 @@ export default function LiveResultsPage() {
             Return to Dashboard
           </Button>
           <Button
-            variant="outline"
+            onClick={() => window.print()}
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Download className="h-4 w-4" />
+            Download PDF Report
+          </Button>
+          <Button
             onClick={() => router.push("/live-interview/book")}
-            className="gap-2 bg-transparent"
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             Book Another Session
           </Button>

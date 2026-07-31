@@ -26,50 +26,50 @@ interface AdminSystemStatusProps {
 
 const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "Backend API": Server,
-  "MongoDB":     Database,
-  "AI Gateway":  Brain,
+  "MongoDB": Database,
+  "AI Gateway": Brain,
 }
 
 const SERVICE_COLORS: Record<string, { icon: string; glow: string; ring: string }> = {
-  "Backend API": { icon: "text-info",    glow: "bg-info/10",    ring: "border-info/20"    },
-  "MongoDB":     { icon: "text-success", glow: "bg-success/10", ring: "border-success/20" },
-  "AI Gateway":  { icon: "text-accent",  glow: "bg-accent/10",  ring: "border-accent/20"  },
+  "Backend API": { icon: "text-info", glow: "bg-info/10", ring: "border-info/20" },
+  "MongoDB": { icon: "text-success", glow: "bg-success/10", ring: "border-success/20" },
+  "AI Gateway": { icon: "text-accent", glow: "bg-accent/10", ring: "border-accent/20" },
 }
 
 // Labels shown for metrics keys
 const METRIC_LABELS: Record<string, string> = {
   uptime: "Uptime",
-  heap:   "Heap",
-  rss:    "RSS",
-  node:   "Node",
-  ping:   "Ping",
-  state:  "State",
-  pool:   "Pool",
+  heap: "Heap",
+  rss: "RSS",
+  node: "Node",
+  ping: "Ping",
+  state: "State",
+  pool: "Pool",
 }
 
 const MODEL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   answer_generation: Cpu,
-  nlp_evaluation:    Brain,
-  speech_to_text:    Mic,
-  vocal_analysis:    Mic,
-  facial_analysis:   Camera,
-  fusion_engine:     Cpu,
+  nlp_evaluation: Brain,
+  speech_to_text: Mic,
+  vocal_analysis: Mic,
+  facial_analysis: Camera,
+  fusion_engine: Cpu,
 }
 
 const MODEL_LABELS: Record<string, string> = {
   answer_generation: "Answer Generation",
-  nlp_evaluation:    "NLP Evaluation",
-  speech_to_text:    "Speech to Text",
-  vocal_analysis:    "Vocal Analysis",
-  facial_analysis:   "Facial Analysis",
-  fusion_engine:     "Fusion Engine",
+  nlp_evaluation: "NLP Evaluation",
+  speech_to_text: "Speech to Text",
+  vocal_analysis: "Vocal Analysis",
+  facial_analysis: "Facial Analysis",
+  fusion_engine: "Fusion Engine",
 }
 
 // ── Polling hook ──────────────────────────────────────────────────────────────
 
 function usePolledServices(initialServices: ServiceStatus[]) {
-  const [services, setServices]         = useState<ServiceStatus[]>(initialServices)
-  const [lastChecked, setLastChecked]   = useState<Date>(new Date())
+  const [services, setServices] = useState<ServiceStatus[]>(initialServices)
+  const [lastChecked, setLastChecked] = useState<Date>(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const refresh = async () => {
@@ -115,10 +115,10 @@ function PulseDot({ ok }: { ok: boolean }) {
 // ── Status badge ──────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; ok: boolean }> = {
-  healthy:   { label: "Healthy",   ok: true  },
-  running:   { label: "Running",   ok: true  },
-  connected: { label: "Connected", ok: true  },
-  degraded:  { label: "Degraded",  ok: false },
+  healthy: { label: "Healthy", ok: true },
+  running: { label: "Running", ok: true },
+  connected: { label: "Connected", ok: true },
+  degraded: { label: "Degraded", ok: false },
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -142,8 +142,8 @@ export function AdminSystemStatus({ services: initialServices }: AdminSystemStat
   const { services, lastChecked, isRefreshing, refresh } = usePolledServices(initialServices)
 
   const aiGateway = services.find(s => s.id === "ai-gateway")
-  const allOk     = services.every(s => STATUS_META[s.status]?.ok !== false)
-  const okCount   = services.filter(s => STATUS_META[s.status]?.ok !== false).length
+  const allOk = services.every(s => STATUS_META[s.status]?.ok !== false)
+  const okCount = services.filter(s => STATUS_META[s.status]?.ok !== false).length
 
   return (
     <section className="rounded-[17px] border border-border bg-card overflow-hidden">
@@ -184,9 +184,9 @@ export function AdminSystemStatus({ services: initialServices }: AdminSystemStat
       {/* ── Service cards ── */}
       <div className="flex flex-col gap-2.5 px-5 pb-5">
         {services.map((service, i) => {
-          const Icon    = SERVICE_ICONS[service.name] ?? Server
-          const colors  = SERVICE_COLORS[service.name] ?? SERVICE_COLORS["Backend API"]
-          const isOk    = STATUS_META[service.status]?.ok !== false
+          const Icon = SERVICE_ICONS[service.name] ?? Server
+          const colors = SERVICE_COLORS[service.name] ?? SERVICE_COLORS["Backend API"]
+          const isOk = STATUS_META[service.status]?.ok !== false
           const metrics = service.metrics ? Object.entries(service.metrics) : []
           const loadedModels = service.models
             ? Object.entries(service.models).filter(([, v]) => v === true)
@@ -215,19 +215,7 @@ export function AdminSystemStatus({ services: initialServices }: AdminSystemStat
                 <StatusBadge status={service.status} />
               </div>
 
-              {/* ── Metrics grid (Backend API & MongoDB) ── */}
-              {metrics.length > 0 && (
-                <div className="border-t border-border/30 grid grid-cols-2 gap-px bg-border/20 px-0">
-                  {metrics.map(([key, value]) => (
-                    <div key={key} className="flex flex-col gap-0.5 bg-background/60 px-4 py-2.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {METRIC_LABELS[key] ?? key}
-                      </span>
-                      <span className="text-xs font-medium text-card-foreground">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* ── Metrics grid removed as requested ── */}
 
               {/* ── AI model chips (AI Gateway only) ── */}
               <AnimatePresence>

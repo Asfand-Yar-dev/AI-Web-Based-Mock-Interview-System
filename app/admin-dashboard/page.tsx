@@ -364,14 +364,12 @@ function OverviewTab({ data }: { data: AdminDashboardData }) {
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <AdminRecentActivity
-            items={data.recentActivity.map((item) => ({
+            items={data.recentActivity.map((item: any) => ({
               id: item.id,
-              title: item.type.toUpperCase(),
-              detail: `${item.user}: ${item.description}`,
-              time: item.timestamp,
-              type: (item.type === "error" || item.type === "degradation" || item.type === "critical")
-                ? "warning"
-                : (item.type === "info" ? "neutral" : "success"),
+              title: item.title || 'Unknown Activity',
+              detail: item.detail || 'No details provided',
+              time: item.time || new Date().toISOString(),
+              type: (item.type as "success" | "warning" | "neutral") || "neutral",
             }))}
           />
         </div>
@@ -381,8 +379,7 @@ function OverviewTab({ data }: { data: AdminDashboardData }) {
               id: s.name.toLowerCase().replace(/\s+/g, "-") || `service-${idx}`,
               name: s.name,
               status: s.status as any,
-              latency: s.latency !== undefined ? `${s.latency}ms` : "N/A",
-              metrics: s.uptime !== undefined ? { uptime: `${(s.uptime / 3600).toFixed(1)} hrs` } : undefined,
+              latency: s.latency !== undefined ? String(s.latency) : "N/A",
             }))}
           />
         </div>

@@ -183,11 +183,10 @@ export default function ResultsPage() {
     const col = (n: number) => (n <= 50 ? "#ef4444" : n <= 75 ? "#f59e0b" : "#10b981")
     const dims: [string, number][] = [
       ["Technical", feedback.technicalScore],
-      ["Communication", feedback.clarityScore],
+      ["Clarity", feedback.clarityScore],
       ["Voice", feedback.voiceToneScore],
       ["Confidence", feedback.confidenceScore],
       ["Body language", feedback.bodyLanguageScore],
-      ["Face presence", feedback.facePresence],
     ]
     const listItems = (arr: string[], cls: string) =>
       arr.length
@@ -420,11 +419,11 @@ export default function ResultsPage() {
               zeroReason="Audio clarity or speech rate was outside normal range."
             />
             <ScoreCard
-              label="Face"
-              score={feedback.facePresence}
-              color={ringColor(feedback.facePresence)}
+              label="Clarity"
+              score={feedback.clarityScore}
+              color={ringColor(feedback.clarityScore)}
               delay={0.35}
-              zeroReason="No face was detected in the recording for this session."
+              zeroReason="Audio clarity or text coherence was too low to be scored."
             />
             <ScoreCard
               label="Confidence"
@@ -436,7 +435,7 @@ export default function ResultsPage() {
           </div>
         ) : (
           <div className="rounded-2xl border border-border/50 bg-card/80 p-8 text-center text-muted-foreground text-sm max-w-xl mx-auto">
-            Dimension scores (technical, body language, voice, face, confidence) appear after at least one answer is
+            Dimension scores (technical, body language, voice, clarity, confidence) appear after at least one answer is
             transcribed and scored. Finish a session with spoken responses to see the full breakdown.
           </div>
         )}

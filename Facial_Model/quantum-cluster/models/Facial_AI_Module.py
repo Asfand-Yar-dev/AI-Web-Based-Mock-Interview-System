@@ -263,17 +263,23 @@ class FacialExpressionModel:
             }
 
             # Require a minimum face region of 30x30 px.
-            # Dark/covered frames produce tiny noise regions (w=1, h=1) that
-            # pass the old `> 0` check — this filters those out.
             if fc["w"] >= 30 and fc["h"] >= 30:
-                is_face_present = True
-                emotion = dominant
-                raw_emotion = dominant
-                confidence = round(conf, 2)
-                all_emotions = emotions
-                face_coords = fc
-                success = True
-                self.emotion_history.append(dominant)
+                # If DeepFace failed to find a box, it returns the whole frame.
+                # Reject it only if the frame is extremely dark (camera covered).
+                is_full_frame = (fc["w"] >= frame.shape[1] - 10) and (fc["h"] >= frame.shape[0] - 10)
+                mean_brightness = np.mean(frame)
+                
+                if is_full_frame and mean_brightness < 15.0:
+                    is_face_present = False
+                else:
+                    is_face_present = True
+                    emotion = dominant
+                    raw_emotion = dominant
+                    confidence = round(conf, 2)
+                    all_emotions = emotions
+                    face_coords = fc
+                    success = True
+                    self.emotion_history.append(dominant)
 
         except (ValueError, Exception) as e:
             is_face_present = False
