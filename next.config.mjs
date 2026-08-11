@@ -3,6 +3,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  devIndicators: false,
 
   // Forward all /api/* and /socket.io/* requests to the Express backend
   // when NEXT_PUBLIC_API_URL is set (development proxy).
