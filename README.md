@@ -1,4 +1,4 @@
-# Intervexa — AI & Premium Live Mock Interview System
+# Intervexa — AI Powered Mock Interview System
 
 **Intervexa** is a state-of-the-art, AI-powered and human-led mock interview platform designed to help job seekers practice, evaluate, and master technical and behavioral interviews.
 
